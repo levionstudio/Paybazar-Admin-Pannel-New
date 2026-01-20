@@ -41,7 +41,7 @@ interface DecodedToken {
 }
 
 interface User {
-  user_id: string;
+  admin_id: string;
   user_name: string;
   user_email?: string;
   user_phone?: string;
@@ -51,7 +51,7 @@ interface User {
 interface ServiceTransaction {
   payout_transaction_id: string;
   transaction_id: string;
-  user_id: string;
+  admin_id: string;
   distributor_id: string;
   phone_number: string;
   bank_name: string;
@@ -768,7 +768,7 @@ const ServiceTransactionPage = () => {
                       </div>
                     ) : (
                       users.map((user) => (
-                        <SelectItem key={user.user_id} value={user.user_id}>
+                        <SelectItem key={user.admin_id} value={user.admin_id}>
                           {user.user_name}
                           {user.user_phone && ` - ${user.user_phone}`}
                         </SelectItem>

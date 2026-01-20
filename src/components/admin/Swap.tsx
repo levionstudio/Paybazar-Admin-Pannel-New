@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
@@ -121,7 +121,7 @@ export function UserHierarchySwap() {
         localStorage.removeItem("authToken");
         return null;
       }
-      return decoded.user_id;
+      return decoded.admin_id;
     } catch {
       return null;
     }

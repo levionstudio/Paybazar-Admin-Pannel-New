@@ -32,7 +32,7 @@ import { Loader2, RefreshCw, Download, Search, Calendar, X } from "lucide-react"
 /* -------------------- TOKEN -------------------- */
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
@@ -57,7 +57,7 @@ function getAdminIdFromToken(): string | null {
       localStorage.removeItem("authToken");
       return null;
     }
-    return decoded.user_id;
+    return decoded.admin_id;
   } catch {
     localStorage.removeItem("authToken");
     return null;
@@ -68,7 +68,7 @@ function getAdminIdFromToken(): string | null {
 
 interface WalletTransactionRaw {
   wallet_transaction_id: string;
-  user_id: string;
+  admin_id: string;
   reference_id: string;
   credit_amount?: string;
   debit_amount?: string;

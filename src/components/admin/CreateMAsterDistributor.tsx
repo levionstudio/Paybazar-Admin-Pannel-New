@@ -69,7 +69,7 @@ const distributorSchema = z.object({
 type DistributorFormData = z.infer<typeof distributorSchema>;
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
@@ -85,7 +85,7 @@ function getAdminIdFromToken(): string | null {
       localStorage.removeItem("authToken");
       return null;
     }
-    return decoded.user_id;
+    return decoded.admin_id;
   } catch {
     return null;
   }
@@ -149,14 +149,16 @@ export default function CreateMasterDistributorPage() {
 
 const payload = {
   admin_id: adminId,
-  name: data.name.trim(),
-  email: data.email.trim().toLowerCase(),
-  password: data.password,
-  phone: data.phone.trim(),
+
+  master_distributor_name: data.name.trim(),
+  master_distributor_email: data.email.trim().toLowerCase(),
+  master_distributor_password: data.password,
+  master_distributor_phone: data.phone.trim(),
 
   aadhar_number: data.aadhar.trim(),
   pan_number: data.pan.trim().toUpperCase(),
 
+  // ✅ THIS IS THE ONLY CORRECT LINE
   date_of_birth: `${data.dob}T00:00:00Z`,
 
   gender: data.gender,

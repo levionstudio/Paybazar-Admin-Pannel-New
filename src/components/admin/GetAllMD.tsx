@@ -34,9 +34,9 @@ import { jwtDecode } from "jwt-decode";
 interface MasterDistributor {
   master_distributor_id: string;
   admin_id: string;
-  name: string;
-  phone: string;
-  email: string;
+  master_distributor_name: string;
+  master_distributor_phone: string;
+  master_distributor_email: string;
   aadhar_number: string;
   pan_number: string;
   date_of_birth: string;
@@ -48,7 +48,7 @@ interface MasterDistributor {
   business_name: string;
   business_type: string;
   kyc_status: boolean;
-  documents_url: string;
+  documents_url: string | null;
   gst_number: string;
   wallet_balance: number;
   is_blocked: boolean;
@@ -57,13 +57,13 @@ interface MasterDistributor {
 }
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
 interface EditFormData {
-  name: string;
-  phone: string;
+  master_distributor_name: string;
+  master_distributor_phone: string;
   city: string;
   state: string;
   address: string;
@@ -87,7 +87,7 @@ function getAdminIdFromToken(): string | null {
       localStorage.removeItem("authToken");
       return null;
     }
-    return decoded.user_id;
+    return decoded.admin_id;
   } catch {
     return null;
   }
@@ -103,8 +103,8 @@ export default function GetAllMD() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [adminId, setAdminId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<EditFormData>({
-    name: "",
-    phone: "",
+    master_distributor_name: "",
+    master_distributor_phone: "",
     city: "",
     state: "",
     address: "",
@@ -197,8 +197,8 @@ const handleEditClick = async (md: MasterDistributor) => {
     setSelectedMD(mdData); // ✅ set ONCE
 
     setEditFormData({
-      name: mdData.name ?? "",
-      phone: mdData.phone ?? "",
+      master_distributor_name: mdData.master_distributor_name ?? "",
+      master_distributor_phone: mdData.master_distributor_phone ?? "",
       city: mdData.city ?? "",
       state: mdData.state ?? "",
       address: mdData.address ?? "",
@@ -228,28 +228,41 @@ const handleUpdateMD = async () => {
     return;
   }
 
-  if (!editFormData.name.trim()) {
+  if (!editFormData.master_distributor_name.trim()) {
     toast.error("Name is required");
     return;
   }
 
-  if (!/^[1-9]\d{9}$/.test(editFormData.phone)) {
+  if (!/^[1-9]\d{9}$/.test(editFormData.master_distributor_phone)) {
     toast.error("Invalid phone number");
     return;
   }
 
   const token = localStorage.getItem("authToken");
-  const url = `${import.meta.env.VITE_API_BASE_URL}/md/update/${selectedMD.master_distributor_id}`;
+  const url = `${import.meta.env.VITE_API_BASE_URL}/md/update/details`;
 
-  const payload: any = {};
+const payload: any = {
+  master_distributor_id: selectedMD.master_distributor_id,
+};
 
-  (Object.keys(editFormData) as (keyof typeof editFormData)[]).forEach(
-    (key) => {
-      if (editFormData[key] !== (selectedMD as any)[key]) {
-        payload[key] = editFormData[key];
-      }
-    }
-  );
+
+ const allowedKeys = [
+  "master_distributor_name",
+  "master_distributor_phone",
+  "city",
+  "state",
+  "address",
+  "pincode",
+  "business_name",
+  "business_type",
+  "gst_number",
+];
+
+allowedKeys.forEach((key) => {
+  if ((editFormData as any)[key] !== (selectedMD as any)[key]) {
+    payload[key] = (editFormData as any)[key];
+  }
+});
 
   if (Object.keys(payload).length === 0) {
     toast.info("No changes detected");
@@ -364,13 +377,13 @@ const handleUpdateMD = async () => {
                         {md.master_distributor_id}
                       </TableCell>
                       <TableCell className="font-medium text-center">
-                        {md.name || "N/A"}
+                        {md.master_distributor_name || "N/A"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {md.email || "N/A"}
+                        {md.master_distributor_email || "N/A"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {md.phone || "N/A"}
+                        {md.master_distributor_phone || "N/A"}
                       </TableCell>
                       <TableCell className="text-center">
                         {md.business_name || "N/A"}
@@ -504,7 +517,7 @@ const handleUpdateMD = async () => {
                     <Label className="text-sm font-medium text-muted-foreground">
                       Email
                     </Label>
-                    <p className="text-sm">{selectedMD.email}</p>
+                    <p className="text-sm">{selectedMD.master_distributor_email}</p>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">
@@ -563,11 +576,11 @@ const handleUpdateMD = async () => {
                       <Input
                         id="edit-name"
                         type="text"
-                        value={editFormData.name}
+                        value={editFormData.master_distributor_name}
                         onChange={(e) =>
                           setEditFormData({
                             ...editFormData,
-                            name: e.target.value,
+                            master_distributor_name: e.target.value,
                           })
                         }
                         placeholder="Enter name"
@@ -582,11 +595,11 @@ const handleUpdateMD = async () => {
                         id="edit-phone"
                         type="tel"
                         inputMode="numeric"
-                        value={editFormData.phone}
+                        value={editFormData.master_distributor_phone}
                         onChange={(e) =>
                           setEditFormData({
                             ...editFormData,
-                            phone: e.target.value.replace(/\D/g, ""),
+                            master_distributor_phone: e.target.value.replace(/\D/g, ""),
                           })
                         }
                         placeholder="Enter 10-digit phone number"
@@ -756,77 +769,7 @@ const handleUpdateMD = async () => {
                   </div>
                 </div>
 
-                {/* Status & Wallet Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <h3 className="font-semibold text-lg">
-                      Status & Wallet Management
-                    </h3>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-kyc">KYC Status</Label>
-                      <Select
-                        value={editFormData.kyc_status ? "verified" : "pending"}
-                        onValueChange={(value) =>
-                          setEditFormData({
-                            ...editFormData,
-                            kyc_status: value === "verified",
-                          })
-                        }
-                      >
-                        <SelectTrigger id="edit-kyc">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="verified">Verified</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-status">Account Status</Label>
-                      <Select
-                        value={editFormData.is_blocked ? "blocked" : "active"}
-                        onValueChange={(value) =>
-                          setEditFormData({
-                            ...editFormData,
-                            is_blocked: value === "blocked",
-                          })
-                        }
-                      >
-                        <SelectTrigger id="edit-status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="blocked">Blocked</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-wallet">Wallet Balance (₹)</Label>
-                      <Input
-                        id="edit-wallet"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editFormData.wallet_balance}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            wallet_balance: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        placeholder="0.00"
-                        className="font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
+              
               </div>
             )
           )}

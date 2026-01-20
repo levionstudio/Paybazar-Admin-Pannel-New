@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, MapPin, Building, Ban, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -27,17 +27,17 @@ import {
 
 interface MasterDistributor {
   master_distributor_id: string;
-  name: string;
-  email?: string;
-  phone?: string;
+  master_distributor_name: string;
+  master_distributor_email: string;
+  master_distributor_phone: string;
 }
 
 interface Distributor {
   distributor_id: string;
   master_distributor_id: string;
-  name: string;
-  phone: string;
-  email: string;
+  distributor_name: string;
+  distributor_email: string;
+  distributor_phone: string;
   aadhar_number: string;
   pan_number: string;
   date_of_birth: string;
@@ -48,6 +48,7 @@ interface Distributor {
   pincode: string;
   business_name: string;
   business_type: string;
+  gst_number: string;
   wallet_balance: number;
   is_blocked: boolean;
   created_at: string;
@@ -55,19 +56,21 @@ interface Distributor {
 }
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
 interface EditFormData {
-  name: string;
-  phone: string;
+  distributor_id: string;
+  distributor_name: string;
+  distributor_phone: string;
   city: string;
   state: string;
   address: string;
   pincode: string;
   business_name: string;
   business_type: string;
+  gst_number: string;
   is_blocked: boolean;
 }
 
@@ -100,14 +103,16 @@ export default function GetAllDistributor() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
-    name: "",
-    phone: "",
+    distributor_id: "",
+    distributor_name: "",
+    distributor_phone: "",
     city: "",
     state: "",
     address: "",
     pincode: "",
     business_name: "",
     business_type: "",
+    gst_number: "",
     is_blocked: false,
   });
   const itemsPerPage = 10;
@@ -123,9 +128,8 @@ export default function GetAllDistributor() {
 
       setLoadingMDs(true);
       try {
-        // Extract adminId from token or set it appropriately
         const decoded = jwtDecode<DecodedToken>(token);
-        const adminId = decoded.user_id;
+        const adminId = decoded.admin_id;
 
         const res = await axios.get(
           `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`,
@@ -142,14 +146,13 @@ export default function GetAllDistributor() {
           
           const normalized = list.map((md: any) => ({
             master_distributor_id: md.master_distributor_id,
-            name: md.name,
-            email: md.email,
-            phone: md.phone,
+            master_distributor_name: md.master_distributor_name,
+            master_distributor_email: md.master_distributor_email,
+            master_distributor_phone: md.master_distributor_phone,
           }));
 
           setMasterDistributors(normalized);
           
-          // Auto-select first MD
           if (normalized.length > 0) {
             setSelectedMD(normalized[0].master_distributor_id);
           }
@@ -192,7 +195,6 @@ export default function GetAllDistributor() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const list = res.data.data.distributors || [];
-        
         setDistributors(list);
         setCurrentPage(1);
       } else {
@@ -212,19 +214,19 @@ export default function GetAllDistributor() {
     }
   }, [selectedMD]);
 
-  // FETCH DATA FIRST, THEN OPEN DIALOG
   const handleEditClick = async (distributor: Distributor) => {
-    // Start loading immediately
+    setEditDialogOpen(true);
     setIsFetchingProfile(true);
 
     const token = getAuthToken();
     if (!token) {
       setIsFetchingProfile(false);
+      setEditDialogOpen(false);
       return;
     }
 
     try {
-      const url = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/${distributor.distributor_id}`;
+      const url = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/distributor/${distributor.distributor_id}`;
 
       const response = await axios.get(url, {
         headers: {
@@ -233,109 +235,114 @@ export default function GetAllDistributor() {
         },
       });
 
-      if (response.data?.data) {
-        const distData = response.data.data;
-        
-        // Populate ALL form fields with fetched data
-        setEditFormData({
-          name: distData.name || "",
-          phone: distData.phone || "",
-          city: distData.city || "",
-          state: distData.state || "",
-          address: distData.address || "",
-          pincode: distData.pincode || "",
-          business_name: distData.business_name || "",
-          business_type: distData.business_type || "",
-          is_blocked: distData.is_blocked || false,
-        });
-        
-        // Set the selected distributor with complete data
-        setSelectedDistributor(distData);
-        
-        // NOW open the dialog - data is ready!
-        setEditDialogOpen(true);
-        toast.success("Profile loaded successfully");
-      } else {
-        toast.error("Failed to load profile");
+      console.log("DISTRIBUTOR PROFILE RESPONSE:", response.data);
+
+      const distData = response.data?.data?.distributor || response.data?.data;
+
+      if (!distData) {
+        toast.error("Invalid profile data");
+        setEditDialogOpen(false);
+        return;
       }
+
+      setSelectedDistributor(distData);
+
+      setEditFormData({
+        distributor_id: distData.distributor_id,
+        distributor_name: distData.distributor_name ?? "",
+        distributor_phone: distData.distributor_phone ?? "",
+        city: distData.city ?? "",
+        state: distData.state ?? "",
+        address: distData.address ?? "",
+        pincode: distData.pincode ?? "",
+        business_name: distData.business_name ?? "",
+        business_type: distData.business_type ?? "",
+        gst_number: distData.gst_number ?? "",
+        is_blocked: Boolean(distData.is_blocked),
+      });
+
+      toast.success("Profile loaded successfully");
     } catch (error: any) {
       console.error("Error fetching distributor profile:", error);
       toast.error(error.response?.data?.message || "Failed to load profile");
+      setEditDialogOpen(false);
     } finally {
       setIsFetchingProfile(false);
     }
   };
 
   const handleUpdateDistributor = async () => {
-    if (!selectedDistributor) return;
+    if (!selectedDistributor?.distributor_id) {
+      toast.error("Invalid distributor selected");
+      return;
+    }
 
-    // Validation
-    if (!editFormData.name.trim()) {
+    if (!editFormData.distributor_name.trim()) {
       toast.error("Name is required");
       return;
     }
-    if (!editFormData.phone.trim() || editFormData.phone.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
+
+    if (!/^[1-9]\d{9}$/.test(editFormData.distributor_phone)) {
+      toast.error("Invalid phone number");
       return;
     }
 
     const token = getAuthToken();
     if (!token) return;
 
-    setIsUpdating(true);
-    try {
-      const url = `${import.meta.env.VITE_API_BASE_URL}/distributor/update/${selectedDistributor.distributor_id}`;
+    const url = `${import.meta.env.VITE_API_BASE_URL}/distributor/update/details`;
 
-      // Build request body with only changed fields
-      const requestBody: any = {};
+    const payload: any = {
+      distributor_id: selectedDistributor.distributor_id,
+    };
+
+    // List of editable fields - compare form data with original distributor data
+    const allowedKeys = [
+      "distributor_name",
+      "distributor_phone",
+      "city",
+      "state",
+      "address",
+      "pincode",
+      "business_name",
+      "business_type",
+      "gst_number",
+    ];
+
+    allowedKeys.forEach((key) => {
+      const formValue = (editFormData as any)[key];
+      const originalValue = (selectedDistributor as any)[key];
       
-      if (editFormData.name !== selectedDistributor.name) {
-        requestBody.name = editFormData.name;
+      if (formValue !== originalValue) {
+        payload[key] = formValue;
       }
-      if (editFormData.phone !== selectedDistributor.phone) {
-        requestBody.phone = editFormData.phone;
-      }
-      if (editFormData.city !== selectedDistributor.city) {
-        requestBody.city = editFormData.city;
-      }
-      if (editFormData.state !== selectedDistributor.state) {
-        requestBody.state = editFormData.state;
-      }
-      if (editFormData.address !== selectedDistributor.address) {
-        requestBody.address = editFormData.address;
-      }
-      if (editFormData.pincode !== selectedDistributor.pincode) {
-        requestBody.pincode = editFormData.pincode;
-      }
-      if (editFormData.business_name !== selectedDistributor.business_name) {
-        requestBody.business_name = editFormData.business_name;
-      }
-      if (editFormData.business_type !== selectedDistributor.business_type) {
-        requestBody.business_type = editFormData.business_type;
-      }
-      if (editFormData.is_blocked !== selectedDistributor.is_blocked) {
-        requestBody.is_blocked = editFormData.is_blocked;
-      }
+    });
 
-      const response = await axios.put(url, requestBody, {
+    if (Object.keys(payload).length === 1) {
+      toast.info("No changes detected");
+      return;
+    }
+
+    console.log("UPDATE PAYLOAD:", payload);
+
+    try {
+      setIsUpdating(true);
+
+      const response = await axios.put(url, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
 
-      if (response.status >= 200 && response.status < 300) {
-        toast.success(response.data?.message || "Distributor updated successfully");
-        setEditDialogOpen(false);
-        setSelectedDistributor(null);
-        
-        setTimeout(() => {
-          fetchDistributors(selectedMD);
-        }, 500);
-      }
+      toast.success(response.data?.message || "Distributor updated successfully");
+
+      setEditDialogOpen(false);
+      setSelectedDistributor(null);
+      fetchDistributors(selectedMD);
     } catch (error: any) {
-      console.error("Error updating distributor:", error);
-      toast.error(error.response?.data?.message || "Failed to update");
+      console.error("Update error:", error);
+      toast.error(error.response?.data?.message || "Update failed");
     } finally {
       setIsUpdating(false);
     }
@@ -348,7 +355,6 @@ export default function GetAllDistributor() {
     return <Badge className="bg-green-50 text-green-700 border-green-300">Active</Badge>;
   };
 
-  // Format date for display
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -360,7 +366,6 @@ export default function GetAllDistributor() {
     });
   };
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(distributors.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentDistributors = distributors.slice(startIndex, startIndex + itemsPerPage);
@@ -414,7 +419,7 @@ export default function GetAllDistributor() {
                         key={md.master_distributor_id}
                         value={md.master_distributor_id}
                       >
-                        {md.name || md.email}
+                        {md.master_distributor_name || md.master_distributor_id}
                       </SelectItem>
                     ))
                   )}
@@ -468,10 +473,10 @@ export default function GetAllDistributor() {
                             {d.distributor_id}
                           </TableCell>
                           <TableCell className="font-medium text-center">
-                            {d.name || "N/A"}
+                            {d.distributor_name || "N/A"}
                           </TableCell>
-                          <TableCell className="text-center">{d.email || "N/A"}</TableCell>
-                          <TableCell className="text-center">{d.phone || "N/A"}</TableCell>
+                          <TableCell className="text-center">{d.distributor_email || "N/A"}</TableCell>
+                          <TableCell className="text-center">{d.distributor_phone || "N/A"}</TableCell>
                           <TableCell className="text-center">{d.business_name || "N/A"}</TableCell>
                           <TableCell className="font-semibold text-center text-green-600">
                             ₹{d.wallet_balance?.toLocaleString("en-IN") || "0"}
@@ -494,7 +499,7 @@ export default function GetAllDistributor() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-20 text-gray-600">
+                        <TableCell colSpan={10} className="text-center py-20 text-gray-600">
                           No distributors found for the selected master distributor
                         </TableCell>
                       </TableRow>
@@ -558,262 +563,289 @@ export default function GetAllDistributor() {
         </div>
       )}
 
-      {/* Edit Distributor Dialog - Only opens AFTER data is loaded */}
+      {/* Edit Distributor Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Edit Distributor Profile</DialogTitle>
           </DialogHeader>
           
-          {selectedDistributor && (
-            <div className="space-y-6">
-              {/* Non-editable Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-secondary/50 rounded-lg">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Distributor ID</Label>
-                  <p className="font-mono text-sm font-semibold">{selectedDistributor.distributor_id}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                  <p className="text-sm">{selectedDistributor.email}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Created At</Label>
-                  <p className="text-sm">{formatDate(selectedDistributor.created_at)}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Aadhar Number</Label>
-                  <p className="font-mono text-sm">{selectedDistributor.aadhar_number}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">PAN Number</Label>
-                  <p className="font-mono text-sm uppercase">{selectedDistributor.pan_number}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
-                  <p className="text-sm">{formatDate(selectedDistributor.date_of_birth)}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
-                  <p className="text-sm">{selectedDistributor.gender}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium text-muted-foreground">Wallet Balance</Label>
-                  <p className="font-semibold text-sm text-green-600">
-                    ₹{selectedDistributor.wallet_balance?.toLocaleString("en-IN") || "0"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Personal Information Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                    <User className="h-5 w-5 text-blue-600" />
+          {isFetchingProfile ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="animate-spin h-6 w-6 text-primary" />
+              <span className="ml-2 text-muted-foreground">Loading profile...</span>
+            </div>
+          ) : (
+            selectedDistributor && (
+              <div className="space-y-6">
+                {/* Non-editable Info */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-secondary/50 rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Distributor ID</Label>
+                    <p className="font-mono text-sm font-semibold">{selectedDistributor.distributor_id}</p>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">Personal Information</h3>
-                    <p className="text-sm text-muted-foreground">Update basic details</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                    <p className="text-sm">{selectedDistributor.distributor_email}</p>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">
-                      Full Name <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="edit-name"
-                      type="text"
-                      value={editFormData.name}
-                      onChange={(e) =>
-                        setEditFormData({ ...editFormData, name: e.target.value })
-                      }
-                      placeholder="Enter name"
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Created At</Label>
+                    <p className="text-sm">{formatDate(selectedDistributor.created_at)}</p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-phone">
-                      Phone Number <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="edit-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      value={editFormData.phone}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          phone: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                      placeholder="Enter 10-digit phone number"
-                      maxLength={10}
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Aadhar Number</Label>
+                    <p className="font-mono text-sm">{selectedDistributor.aadhar_number}</p>
                   </div>
-                </div>
-              </div>
-
-              {/* Business Information Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                    <CreditCard className="h-5 w-5 text-blue-600" />
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">PAN Number</Label>
+                    <p className="font-mono text-sm uppercase">{selectedDistributor.pan_number}</p>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">Business Information</h3>
-                    <p className="text-sm text-muted-foreground">Company details</p>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
+                    <p className="text-sm">{formatDate(selectedDistributor.date_of_birth)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
+                    <p className="text-sm">{selectedDistributor.gender}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Wallet Balance</Label>
+                    <p className="font-semibold text-sm text-green-600">
+                      ₹{selectedDistributor.wallet_balance?.toLocaleString("en-IN") || "0"}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-business-name">Business Name</Label>
-                    <Input
-                      id="edit-business-name"
-                      type="text"
-                      value={editFormData.business_name}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          business_name: e.target.value,
-                        })
-                      }
-                      placeholder="Enter business name"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-business-type">Business Type</Label>
-                    <Input
-                      id="edit-business-type"
-                      type="text"
-                      value={editFormData.business_type}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          business_type: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., Sole Proprietorship"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Address Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                    <MapPin className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">Address Details</h3>
-                    <p className="text-sm text-muted-foreground">Location information</p>
-                  </div>
-                </div>
-
+                {/* Personal Information Section */}
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-address">Full Address</Label>
-                    <Textarea
-                      id="edit-address"
-                      value={editFormData.address}
-                      onChange={(e) =>
-                        setEditFormData({ ...editFormData, address: e.target.value })
-                      }
-                      placeholder="Enter complete address"
-                      className="min-h-[80px] resize-none"
-                    />
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <User className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Personal Information</h3>
+                      <p className="text-sm text-muted-foreground">Update basic details</p>
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-city">City</Label>
+                      <Label htmlFor="edit-name">
+                        Full Name <span className="text-red-500">*</span>
+                      </Label>
                       <Input
-                        id="edit-city"
+                        id="edit-name"
                         type="text"
-                        value={editFormData.city}
+                        value={editFormData.distributor_name}
                         onChange={(e) =>
-                          setEditFormData({ ...editFormData, city: e.target.value })
+                          setEditFormData({ ...editFormData, distributor_name: e.target.value })
                         }
-                        placeholder="Enter city"
+                        placeholder="Enter name"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="edit-state">State</Label>
+                      <Label htmlFor="edit-phone">
+                        Phone Number <span className="text-red-500">*</span>
+                      </Label>
                       <Input
-                        id="edit-state"
-                        type="text"
-                        value={editFormData.state}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, state: e.target.value })
-                        }
-                        placeholder="Enter state"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-pincode">Pincode</Label>
-                      <Input
-                        id="edit-pincode"
+                        id="edit-phone"
                         type="tel"
                         inputMode="numeric"
-                        value={editFormData.pincode}
+                        value={editFormData.distributor_phone}
                         onChange={(e) =>
                           setEditFormData({
                             ...editFormData,
-                            pincode: e.target.value.replace(/\D/g, ""),
+                            distributor_phone: e.target.value.replace(/\D/g, ""),
                           })
                         }
-                        placeholder="400001"
-                        maxLength={6}
-                        className="font-mono"
+                        placeholder="Enter 10-digit phone number"
+                        maxLength={10}
                       />
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Status Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b">
-                  <h3 className="font-semibold text-lg">Account Status</h3>
+                {/* Business Information Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <Building className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Business Information</h3>
+                      <p className="text-sm text-muted-foreground">Company details</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-business-name">Business Name</Label>
+                      <Input
+                        id="edit-business-name"
+                        type="text"
+                        value={editFormData.business_name}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            business_name: e.target.value,
+                          })
+                        }
+                        placeholder="Enter business name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-business-type">Business Type</Label>
+                      <Input
+                        id="edit-business-type"
+                        type="text"
+                        value={editFormData.business_type}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            business_type: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., Sole Proprietorship"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="edit-gst">
+                        GST Number <span className="text-muted-foreground font-normal">(Optional)</span>
+                      </Label>
+                      <Input
+                        id="edit-gst"
+                        type="text"
+                        value={editFormData.gst_number}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            gst_number: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="22AAAAA0000A1Z5"
+                        maxLength={15}
+                        className="font-mono uppercase"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="edit-status">Status</Label>
-                  <Select
-                    value={editFormData.is_blocked ? "blocked" : "active"}
-                    onValueChange={(value) =>
-                      setEditFormData({
-                        ...editFormData,
-                        is_blocked: value === "blocked",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span>Active</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="blocked">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4 text-red-600" />
-                          <span>Blocked</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Address Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <MapPin className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Address Details</h3>
+                      <p className="text-sm text-muted-foreground">Location information</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-address">Full Address</Label>
+                      <Textarea
+                        id="edit-address"
+                        value={editFormData.address}
+                        onChange={(e) =>
+                          setEditFormData({ ...editFormData, address: e.target.value })
+                        }
+                        placeholder="Enter complete address"
+                        className="min-h-[80px] resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-city">City</Label>
+                        <Input
+                          id="edit-city"
+                          type="text"
+                          value={editFormData.city}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, city: e.target.value })
+                          }
+                          placeholder="Enter city"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-state">State</Label>
+                        <Input
+                          id="edit-state"
+                          type="text"
+                          value={editFormData.state}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, state: e.target.value })
+                          }
+                          placeholder="Enter state"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-pincode">Pincode</Label>
+                        <Input
+                          id="edit-pincode"
+                          type="tel"
+                          inputMode="numeric"
+                          value={editFormData.pincode}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              pincode: e.target.value.replace(/\D/g, ""),
+                            })
+                          }
+                          placeholder="400001"
+                          maxLength={6}
+                          className="font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <h3 className="font-semibold text-lg">Account Status</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select
+                      value={editFormData.is_blocked ? "blocked" : "active"}
+                      onValueChange={(value) =>
+                        setEditFormData({
+                          ...editFormData,
+                          is_blocked: value === "blocked",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span>Active</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="blocked">
+                          <div className="flex items-center gap-2">
+                            <Ban className="h-4 w-4 text-red-600" />
+                            <span>Blocked</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           )}
           
           <DialogFooter>
@@ -823,11 +855,14 @@ export default function GetAllDistributor() {
                 setEditDialogOpen(false);
                 setSelectedDistributor(null);
               }}
-              disabled={isUpdating}
+              disabled={isUpdating || isFetchingProfile}
             >
               Cancel
             </Button>
-            <Button onClick={handleUpdateDistributor} disabled={isUpdating}>
+            <Button
+              onClick={handleUpdateDistributor}
+              disabled={isUpdating || isFetchingProfile}
+            >
               {isUpdating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

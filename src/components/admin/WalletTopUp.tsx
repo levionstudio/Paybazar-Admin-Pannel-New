@@ -18,7 +18,7 @@ import {
 /* -------------------- TOKEN TYPES -------------------- */
 
 interface DecodedToken {
-  user_id: string
+ admin_id: string
   exp: number
 }
 
@@ -36,7 +36,7 @@ function getAdminIdFromToken(): string | null {
       return null
     }
 
-    return decoded.user_id
+    return decoded.admin_id
   } catch {
     return null
   }
@@ -117,8 +117,8 @@ const WalletTopUp = () => {
     try {
       setLoading(true)
 
-      const { data } = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/admin/wallet/topup`,
+      const { data } = await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/admin/update/wallet`,
         payload,
         {
           headers: {

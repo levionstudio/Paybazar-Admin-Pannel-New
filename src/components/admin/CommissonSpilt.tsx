@@ -14,10 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -36,40 +33,34 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/* ===================== TYPES ===================== */
+
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
 interface MasterDistributor {
   master_distributor_id: string;
   name: string;
-  email: string;
-  phone: string;
-  business_name?: string;
 }
 
 interface Distributor {
   distributor_id: string;
   name: string;
-  email: string;
-  phone: string;
-  business_name?: string;
   master_distributor_id: string;
 }
 
 interface Retailer {
   retailer_id: string;
   name: string;
-  email: string;
-  phone: string;
-  business_name?: string;
   distributor_id: string;
 }
 
 interface CommissionData {
-  commision_id?: number;
+  commision_id: number;
   user_id: string;
+  service: string;
   total_commision: number;
   admin_commision: number;
   master_distributor_commision: number;
@@ -78,545 +69,367 @@ interface CommissionData {
 }
 
 const TOTAL_COMMISSION = 1.0;
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const SERVICE_TYPE = "PAYOUT";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-/* -------------------- AUTH HELPER -------------------- */
-function getAdminIdFromToken(): string | null {
-  const token = localStorage.getItem("authToken");
-  if (!token) return null;
-
-  try {
-    const decoded = jwtDecode<DecodedToken>(token);
-    if (decoded.exp * 1000 < Date.now()) {
-      localStorage.removeItem("authToken");
-      return null;
-    }
-    return decoded.user_id;
-  } catch {
-    return null;
-  }
-}
+/* ===================== AUTH ===================== */
 
 function getAuthToken(): string | null {
   return localStorage.getItem("authToken");
 }
 
-/* -------------------- HELPER FUNCTIONS -------------------- */
-function formatCommissionInput(value: string): string {
-  // Remove non-numeric characters except decimal point
-  let cleaned = value.replace(/[^\d.]/g, "");
-  
-  // Only allow one decimal point
-  const parts = cleaned.split(".");
-  if (parts.length > 2) {
-    cleaned = parts[0] + "." + parts.slice(1).join("");
+function getAdminId(): string | null {
+  const token = getAuthToken();
+  if (!token) return null;
+
+  try {
+    const decoded = jwtDecode<DecodedToken>(token);
+    if (decoded.exp * 1000 < Date.now()) return null;
+    return decoded.admin_id;
+  } catch {
+    return null;
   }
-  
-  // Limit to 2 decimal places
-  if (parts.length === 2) {
-    cleaned = parts[0] + "." + parts[1].substring(0, 2);
-  }
-  
-  // Allow values up to 1.00 (total can be validated separately)
-  const numValue = parseFloat(cleaned);
-  if (numValue > 1) {
-    cleaned = "1.00";
-  }
-  
-  return cleaned;
 }
+
+/* ===================== COMPONENT ===================== */
 
 export default function CommissionSplit() {
   const [adminId, setAdminId] = useState<string | null>(null);
 
-  // Category & Subcategory
-  const [selectedCategory, setSelectedCategory] = useState<string>("financials");
-  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("settlement");
-
-  // Dropdown data
   const [masterDistributors, setMasterDistributors] = useState<MasterDistributor[]>([]);
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
-  const [filteredRetailers, setFilteredRetailers] = useState<Retailer[]>([]);
 
-  // Search
-  const [retailerSearch, setRetailerSearch] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("");
 
-  // Selected values
-  const [selectedMD, setSelectedMD] = useState<string>("");
-  const [selectedDistributor, setSelectedDistributor] = useState<string>("");
-  const [selectedRetailer, setSelectedRetailer] = useState<string>("");
+  const [selectedMD, setSelectedMD] = useState("");
+  const [selectedDistributor, setSelectedDistributor] = useState("");
+  const [selectedRetailer, setSelectedRetailer] = useState("");
 
-  // Commission values
-  const [mdCommission, setMdCommission] = useState<string>("");
-  const [distributorCommission, setDistributorCommission] = useState<string>("");
-  const [retailerCommission, setRetailerCommission] = useState<string>("");
-  const [adminCommission, setAdminCommission] = useState<number>(0);
+  const [mdCommission, setMdCommission] = useState("");
+  const [distributorCommission, setDistributorCommission] = useState("");
+  const [retailerCommission, setRetailerCommission] = useState("");
+  const [adminCommission, setAdminCommission] = useState(0);
 
-  // Loading states
-  const [loadingMDs, setLoadingMDs] = useState(true);
+  const [existingCommission, setExistingCommission] = useState<CommissionData | null>(null);
+  const [loadingMDs, setLoadingMDs] = useState(false);
   const [loadingDistributors, setLoadingDistributors] = useState(false);
   const [loadingRetailers, setLoadingRetailers] = useState(false);
   const [loadingCommission, setLoadingCommission] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // UI states
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [validationError, setValidationError] = useState<string>("");
-  const [existingCommission, setExistingCommission] = useState<CommissionData | null>(null);
-  const [hasCommissionConfigured, setHasCommissionConfigured] = useState<boolean>(false);
-  const [isInheritedData, setIsInheritedData] = useState<boolean>(false);
+  const [hasCommissionConfigured, setHasCommissionConfigured] = useState(false);
 
-  // Get admin ID on mount
+  const [retailerSearch, setRetailerSearch] = useState("");
+  const [validationError, setValidationError] = useState("");
+
+  // Locking states
+  const [isMDLocked, setIsMDLocked] = useState(false);
+  const [isDistributorLocked, setIsDistributorLocked] = useState(false);
+  const [isInheritedData, setIsInheritedData] = useState(false);
+
+  /* ===================== INIT ===================== */
+
   useEffect(() => {
-    const id = getAdminIdFromToken();
-    setAdminId(id);
+    setAdminId(getAdminId());
   }, []);
 
-  // Fetch Master Distributors
+  /* ===================== FETCH MD ===================== */
+
   useEffect(() => {
-    const fetchMasterDistributors = async () => {
-      if (!adminId) {
-        setLoadingMDs(false);
-        return;
-      }
+    if (!adminId) return;
+    
+    setLoadingMDs(true);
+    const token = getAuthToken();
 
-      const token = getAuthToken();
-      if (!token) {
-        setLoadingMDs(false);
-        return;
-      }
-
-      setLoadingMDs(true);
-      try {
-        const res = await axios.get(
-          `${API_BASE_URL}/md/get/admin/${adminId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (res.data?.status === "success" && res.data?.data) {
-          const list = res.data.data.master_distributors || [];
-          setMasterDistributors(list);
-        } else {
-          toast.error("Failed to load master distributors");
-        }
-      } catch (error: any) {
-        toast.error(error.response?.data?.message || "Failed to load master distributors");
-      } finally {
-        setLoadingMDs(false);
-      }
-    };
-
-    fetchMasterDistributors();
+    axios
+      .get(`${API_BASE_URL}/md/get/admin/${adminId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setMasterDistributors(res.data.data.master_distributors || []);
+      })
+      .catch(() => toast.error("Failed to load Master Distributors"))
+      .finally(() => setLoadingMDs(false));
   }, [adminId]);
 
-  // Fetch Distributors when MD is selected
+  /* ===================== FETCH DISTRIBUTORS ===================== */
+
   const fetchDistributors = async (mdId: string) => {
-    if (!mdId) {
-      setDistributors([]);
-      return;
-    }
-
     const token = getAuthToken();
-    if (!token) return;
-
     setLoadingDistributors(true);
     setDistributors([]);
+    setRetailers([]);
 
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/distributor/get/md/${mdId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (res.data?.status === "success" && res.data?.data) {
-        const list = res.data.data.distributors || [];
-        setDistributors(list);
-      }
-    } catch (error: any) {
-      console.error("Error fetching distributors:", error);
+      const res = await axios.get(`${API_BASE_URL}/distributor/get/md/${mdId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDistributors(res.data.data.distributors || []);
+    } catch (error) {
+      toast.error("Failed to load distributors");
     } finally {
       setLoadingDistributors(false);
     }
   };
 
-  // Fetch Retailers when Distributor is selected
-  const fetchRetailers = async (distributorId: string) => {
-    if (!distributorId) {
-      setRetailers([]);
-      setFilteredRetailers([]);
-      return;
-    }
+  /* ===================== FETCH RETAILERS ===================== */
 
+  const fetchRetailers = async (distId: string) => {
     const token = getAuthToken();
-    if (!token) return;
-
     setLoadingRetailers(true);
-    setRetailers([]);
-    setFilteredRetailers([]);
-
+    
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/retailer/get/distributor/${distributorId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (res.data?.status === "success" && res.data?.data) {
-        const list = res.data.data.retailers || [];
-        setRetailers(list);
-        setFilteredRetailers(list);
-      }
-    } catch (error: any) {
-      console.error("Error fetching retailers:", error);
+      const res = await axios.get(`${API_BASE_URL}/retailer/get/distributor/${distId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setRetailers(res.data.data.retailers || []);
+    } catch (error) {
+      toast.error("Failed to load retailers");
     } finally {
       setLoadingRetailers(false);
     }
   };
 
-  // Filter retailers based on search
-  useEffect(() => {
-    if (!retailerSearch.trim()) {
-      setFilteredRetailers(retailers);
-      return;
-    }
+  /* ===================== FETCH EXISTING COMMISSION ===================== */
 
-    const searchLower = retailerSearch.toLowerCase();
-    const filtered = retailers.filter(
-      (r) =>
-        r.name.toLowerCase().includes(searchLower) ||
-        r.retailer_id.toLowerCase().includes(searchLower) ||
-        r.email?.toLowerCase().includes(searchLower) ||
-        r.phone?.toLowerCase().includes(searchLower)
-    );
-    setFilteredRetailers(filtered);
-  }, [retailerSearch, retailers]);
-
-  // Fetch parent commission to inherit values
-  const fetchParentCommission = async (currentUserId: string, currentLevel: 'md' | 'distributor' | 'retailer', parentId?: string) => {
+  const fetchCommission = async (userId: string) => {
     const token = getAuthToken();
-    if (!token) {
-      setHasCommissionConfigured(false);
-      return;
-    }
-
-    setExistingCommission(null);
-
-    try {
-      let parentUserId: string | null = null;
-
-      // Determine parent based on current level
-      if (currentLevel === 'retailer' && parentId) {
-        // Retailer's parent is the distributor
-        parentUserId = parentId;
-        console.log("Fetching parent commission for retailer from distributor:", parentUserId);
-      } else if (currentLevel === 'distributor' && parentId) {
-        // Distributor's parent is the MD
-        parentUserId = parentId;
-        console.log("Fetching parent commission for distributor from MD:", parentUserId);
-      } else {
-        console.log("At MD level, no parent to fetch from");
-      }
-
-      // If no parent (MD level), show appropriate state
-      if (!parentUserId) {
-        setHasCommissionConfigured(false);
-        setMdCommission("");
-        setDistributorCommission("");
-        setRetailerCommission("");
-        setIsInheritedData(false);
-        return;
-      }
-
-      // Try to fetch parent's commission
-      console.log("Attempting to fetch commission for parent user:", parentUserId);
-      const res = await axios.get(
-        `${API_BASE_URL}/commision/get/user/${parentUserId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      console.log("Parent commission response:", res.data);
-
-      if (res.data?.status === "success" && res.data?.data) {
-        const parentCommission = res.data.data;
-        
-        // Show form with inherited values
-        setHasCommissionConfigured(true);
-        setMdCommission(parentCommission.master_distributor_commision.toFixed(2));
-        setDistributorCommission(parentCommission.distributor_commision.toFixed(2));
-        setRetailerCommission(parentCommission.retailer_commision.toFixed(2));
-        setIsInheritedData(true);
-        
-        toast.info("Showing inherited commission from parent - you can edit and save custom values");
-      } else {
-        // Parent also has no commission - show empty form for D/R
-        console.log("Parent has no commission configured");
-        if (currentLevel !== 'md') {
-          setHasCommissionConfigured(true);
-        } else {
-          setHasCommissionConfigured(false);
-        }
-        setMdCommission("");
-        setDistributorCommission("");
-        setRetailerCommission("");
-        setIsInheritedData(false);
-        toast.info("No commission configured in hierarchy - please set commission values");
-      }
-    } catch (error: any) {
-      // Parent has no commission either
-      console.log("Error fetching parent commission:", error);
-      
-      // Show empty form for D/R, no form for MD
-      if (currentLevel !== 'md') {
-        setHasCommissionConfigured(true);
-        toast.info("No commission configured in hierarchy - please set commission values");
-      } else {
-        setHasCommissionConfigured(false);
-      }
-      setMdCommission("");
-      setDistributorCommission("");
-      setRetailerCommission("");
-      setIsInheritedData(false);
-    }
-  };
-
-  // Fetch existing commission for selected user
-  const fetchExistingCommission = async (userId: string, level: 'md' | 'distributor' | 'retailer', parentId?: string) => {
-    const token = getAuthToken();
-    if (!token || !userId) return;
-
     setLoadingCommission(true);
+    
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/commision/get/user/${userId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      // Updated endpoint to match the route: /get/commision/:user_id/:service
+      const res = await axios.get(`${API_BASE_URL}/commision/get/commision/${userId}/${SERVICE_TYPE}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (res.data?.status === "success" && res.data?.data) {
-        const commission = res.data.data;
-        setExistingCommission(commission);
-        setHasCommissionConfigured(true);
-        setIsInheritedData(false);
+      const c = res.data.data;
+      setExistingCommission(c);
+      setHasCommissionConfigured(true);
 
-        // Pre-fill values with 2 decimal places
-        setMdCommission(commission.master_distributor_commision.toFixed(2));
-        setDistributorCommission(commission.distributor_commision.toFixed(2));
-        setRetailerCommission(commission.retailer_commision.toFixed(2));
-        
-        toast.success("Loaded existing commission configuration");
-        setLoadingCommission(false);
-      } else {
-        // No existing commission found - try to fetch from parent
-        await fetchParentCommission(userId, level, parentId);
-        setLoadingCommission(false);
-      }
+      // Populate fields with existing data
+      setMdCommission(c.master_distributor_commision.toFixed(2));
+      setDistributorCommission(c.distributor_commision.toFixed(2));
+      setRetailerCommission(c.retailer_commision.toFixed(2));
+      
+      // Determine if this is inherited data or direct assignment
+      const isDirectAssignment = c.user_id === userId;
+      setIsInheritedData(!isDirectAssignment);
+      
     } catch (error: any) {
-      // No commission found - try to fetch from parent
-      console.log("No existing commission found for user:", userId);
-      await fetchParentCommission(userId, level, parentId);
+      // No commission found - this is expected for new configurations
+      if (error.response?.status === 404) {
+        setExistingCommission(null);
+        setHasCommissionConfigured(false);
+        setIsInheritedData(false);
+        
+        // Reset commission fields
+        setMdCommission("");
+        setDistributorCommission("");
+        setRetailerCommission("");
+      } else {
+        toast.error("Failed to load commission data");
+      }
+    } finally {
       setLoadingCommission(false);
     }
   };
 
-  // Handle MD selection
-  const handleMDSelect = (mdId: string) => {
+  /* ===================== HANDLE MD SELECT ===================== */
+
+  const handleMDSelect = async (mdId: string) => {
     setSelectedMD(mdId);
     setSelectedDistributor("");
     setSelectedRetailer("");
     setDistributors([]);
     setRetailers([]);
-    setFilteredRetailers([]);
-    setRetailerSearch("");
-    fetchDistributors(mdId);
-    fetchExistingCommission(mdId, 'md'); // MD has no parent
+    
+    // Reset locks
+    setIsMDLocked(false);
+    setIsDistributorLocked(false);
+    
+    // Fetch commission for MD
+    await fetchCommission(mdId);
+    
+    // Fetch distributors under this MD
+    await fetchDistributors(mdId);
   };
 
-  // Handle Distributor selection
-  const handleDistributorSelect = (distId: string) => {
+  /* ===================== HANDLE DISTRIBUTOR SELECT ===================== */
+
+  const handleDistributorSelect = async (distId: string) => {
     setSelectedDistributor(distId);
     setSelectedRetailer("");
     setRetailers([]);
-    setFilteredRetailers([]);
-    setRetailerSearch("");
-    fetchRetailers(distId);
-    fetchExistingCommission(distId, 'distributor', selectedMD); // Parent is the selected MD
-  };
-
-  // Handle Retailer selection
-  const handleRetailerSelect = (retailerId: string) => {
-    setSelectedRetailer(retailerId);
-    fetchExistingCommission(retailerId, 'retailer', selectedDistributor); // Parent is the selected distributor
-  };
-
-  // Handle commission input changes with formatting
-  const handleCommissionChange = (
-    field: "md" | "distributor" | "retailer",
-    value: string
-  ) => {
-    const formatted = formatCommissionInput(value);
     
-    if (field === "md") {
-      setMdCommission(formatted);
-    } else if (field === "distributor") {
-      setDistributorCommission(formatted);
-    } else {
-      setRetailerCommission(formatted);
+    // Lock MD commission when distributor is selected
+    setIsMDLocked(true);
+    setIsDistributorLocked(false);
+    
+    // Fetch commission for distributor
+    await fetchCommission(distId);
+    
+    // Fetch retailers under this distributor
+    await fetchRetailers(distId);
+  };
+
+  /* ===================== HANDLE RETAILER SELECT ===================== */
+
+  const handleRetailerSelect = async (retId: string) => {
+    setSelectedRetailer(retId);
+    
+    // Lock both MD and Distributor commissions when retailer is selected
+    setIsMDLocked(true);
+    setIsDistributorLocked(true);
+    
+    // Fetch commission for retailer
+    await fetchCommission(retId);
+  };
+
+  /* ===================== FILTER RETAILERS ===================== */
+
+  const filteredRetailers = retailers.filter((ret) => {
+    if (!retailerSearch) return true;
+    const search = retailerSearch.toLowerCase();
+    return (
+      ret.name.toLowerCase().includes(search) ||
+      ret.retailer_id.toLowerCase().includes(search)
+    );
+  });
+
+  /* ===================== HANDLE COMMISSION CHANGE ===================== */
+
+  const handleCommissionChange = (type: "md" | "distributor" | "retailer", value: string) => {
+    // Allow only numbers and single decimal point
+    if (value && !/^\d*\.?\d{0,2}$/.test(value)) return;
+
+    switch (type) {
+      case "md":
+        setMdCommission(value);
+        break;
+      case "distributor":
+        setDistributorCommission(value);
+        break;
+      case "retailer":
+        setRetailerCommission(value);
+        break;
     }
   };
 
-  // Calculate admin commission whenever values change
-  useEffect(() => {
-    const md = parseFloat(mdCommission) || 0;
-    const dist = parseFloat(distributorCommission) || 0;
-    const ret = parseFloat(retailerCommission) || 0;
-    const total = md + dist + ret;
-    const admin = TOTAL_COMMISSION - total;
-    
-    setAdminCommission(admin);
+  /* ===================== CALCULATE ADMIN COMMISSION ===================== */
 
-    // Only validate if total exceeds 1.00%
+  useEffect(() => {
+    const md = Number(mdCommission || 0);
+    const dist = Number(distributorCommission || 0);
+    const ret = Number(retailerCommission || 0);
+    const total = md + dist + ret;
+
+    const calculatedAdmin = Number((TOTAL_COMMISSION - total).toFixed(2));
+    setAdminCommission(calculatedAdmin);
+
+    // Validation
     if (total > TOTAL_COMMISSION) {
       setValidationError("Total commission cannot exceed 1.00%");
+    } else if (calculatedAdmin < 0) {
+      setValidationError("Admin commission cannot be negative");
+    } else if (md < 0 || dist < 0 || ret < 0) {
+      setValidationError("Commission values cannot be negative");
     } else {
       setValidationError("");
     }
   }, [mdCommission, distributorCommission, retailerCommission]);
 
-  // Determine if fields should be locked
-  const isMDLocked = selectedDistributor !== "" || selectedRetailer !== "";
-  const isDistributorLocked = selectedRetailer !== "";
+  /* ===================== HANDLE SAVE ===================== */
 
-  // Handle Save
-  const handleSave = async () => {
-    if (!selectedMD) {
-      toast.error("Please select a Master Distributor");
-      return;
-    }
-
+  const handleSave = () => {
+    // Final validation before opening confirm dialog
     if (!mdCommission || !distributorCommission || !retailerCommission) {
-      toast.error("Please enter all commission values");
+      toast.error("Please fill in all commission fields");
       return;
     }
 
-    // Only check if total exceeds 1.00%
-    const total = parseFloat(mdCommission) + parseFloat(distributorCommission) + parseFloat(retailerCommission);
-    if (total > TOTAL_COMMISSION) {
-      toast.error("Total commission cannot exceed 1.00%. Admin gets the remainder.");
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
     setConfirmDialogOpen(true);
   };
 
+  /* ===================== CONFIRM SAVE ===================== */
+
   const confirmSave = async () => {
     const token = getAuthToken();
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
-
     setSaving(true);
     setConfirmDialogOpen(false);
 
+    // Determine which user_id to use based on selection
+    let userId = selectedMD;
+    if (selectedDistributor) userId = selectedDistributor;
+    if (selectedRetailer) userId = selectedRetailer;
+
+    const payload = {
+      user_id: userId,
+      service: SERVICE_TYPE,
+      total_commision: TOTAL_COMMISSION,
+      admin_commision: adminCommission,
+      master_distributor_commision: Number(mdCommission),
+      distributor_commision: Number(distributorCommission),
+      retailer_commision: Number(retailerCommission),
+    };
+
     try {
-      // Determine user_id based on selection
-      let userId = selectedMD;
-      if (selectedRetailer) {
-        userId = selectedRetailer;
-      } else if (selectedDistributor) {
-        userId = selectedDistributor;
-      }
-
-      const payload = {
-        user_id: userId,
-        total_commision: parseFloat(TOTAL_COMMISSION.toFixed(2)),
-        master_distributor_commision: parseFloat(parseFloat(mdCommission).toFixed(2)),
-        distributor_commision: parseFloat(parseFloat(distributorCommission).toFixed(2)),
-        retailer_commision: parseFloat(parseFloat(retailerCommission).toFixed(2)),
-      };
-
-      let response;
-      if (existingCommission) {
-        // Update existing
-        response = await axios.put(
-          `${API_BASE_URL}/commision/update/${existingCommission.commision_id}`,
-          payload,
+      if (existingCommission && !isInheritedData) {
+        // Update existing commission
+        await axios.put(
+          `${API_BASE_URL}/commision/update/commision`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
+            commision_id: existingCommission.commision_id,
+            total_commision: TOTAL_COMMISSION,
+            admin_commision: adminCommission,
+            master_distributor_commision: Number(mdCommission),
+            distributor_commision: Number(distributorCommission),
+            retailer_commision: Number(retailerCommission),
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
         );
+        toast.success("Commission updated successfully");
       } else {
-        // Create new
-        response = await axios.post(
-          `${API_BASE_URL}/commision/create`,
-          payload,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        // Create new commission
+        await axios.post(`${API_BASE_URL}/commision/create`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.success("Commission created successfully");
       }
 
-      if (response.data?.status === "success") {
-        const action = existingCommission ? "updated" : "created";
-        toast.success(`Commission configuration ${action} successfully`);
-        fetchExistingCommission(userId);
-      } else {
-        toast.error(response.data?.message || "Failed to save commission");
-      }
-    } catch (error: any) {
-      console.error("Error saving commission:", error);
-      toast.error(error.response?.data?.message || "Failed to save commission");
+      // Refresh commission data
+      await fetchCommission(userId);
+      
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || "Failed to save commission";
+      toast.error(errorMsg);
+      console.error("Save error:", err);
     } finally {
       setSaving(false);
     }
   };
 
-  // Reset form
+  /* ===================== HANDLE RESET ===================== */
+
   const handleReset = () => {
-    setSelectedMD("");
-    setSelectedDistributor("");
-    setSelectedRetailer("");
-    setDistributors([]);
-    setRetailers([]);
-    setFilteredRetailers([]);
-    setRetailerSearch("");
-    setMdCommission("");
-    setDistributorCommission("");
-    setRetailerCommission("");
-    setExistingCommission(null);
-    setHasCommissionConfigured(false);
-    setValidationError("");
-    setIsInheritedData(false);
+    if (existingCommission && !isInheritedData) {
+      // Reset to existing values
+      setMdCommission(existingCommission.master_distributor_commision.toFixed(2));
+      setDistributorCommission(existingCommission.distributor_commision.toFixed(2));
+      setRetailerCommission(existingCommission.retailer_commision.toFixed(2));
+    } else {
+      // Clear all fields
+      setMdCommission("");
+      setDistributorCommission("");
+      setRetailerCommission("");
+      setHasCommissionConfigured(false);
+    }
   };
 
   return (
@@ -647,7 +460,7 @@ export default function CommissionSplit() {
                 <Label className="text-sm font-medium text-gray-700">Category</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger className="h-12 bg-white">
-                    <SelectValue />
+                    <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="financials">Financials</SelectItem>
@@ -661,7 +474,7 @@ export default function CommissionSplit() {
                 <Label className="text-sm font-medium text-gray-700">Subcategory</Label>
                 <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
                   <SelectTrigger className="h-12 bg-white">
-                    <SelectValue />
+                    <SelectValue placeholder="Select subcategory" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="settlement">Settlement</SelectItem>
@@ -848,12 +661,12 @@ export default function CommissionSplit() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <h2 className="text-lg font-semibold text-gray-900">Commission Split</h2>
-                          {existingCommission && (
+                          {existingCommission && !isInheritedData && (
                             <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
                               Editing Existing
                             </span>
                           )}
-                          {isInheritedData && !existingCommission && (
+                          {isInheritedData && (
                             <span className="text-xs font-medium px-2 py-1 bg-amber-100 text-amber-700 rounded">
                               Inherited from Parent
                             </span>
@@ -1028,9 +841,17 @@ export default function CommissionSplit() {
               </Button>
               <Button
                 onClick={confirmSave}
+                disabled={saving}
                 className="paybazaar-button h-12"
               >
-                Confirm & Save
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Confirm & Save"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

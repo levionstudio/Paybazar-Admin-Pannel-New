@@ -26,7 +26,7 @@ import payBazaarLogo from "@/assets/paybazaar-logo.png";
 import { jwtDecode } from "jwt-decode";
 
 interface JWTPayload {
-  user_id: string;
+  admin_id: string;
   user_name: string;
   user_role: string;
   exp: number;
@@ -720,7 +720,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-card-foreground truncate">
-                  {adminDetails.user_id }
+                  {adminDetails.admin_id }
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {adminDetails.user_name || ''}

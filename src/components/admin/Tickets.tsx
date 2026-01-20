@@ -46,7 +46,6 @@ import {
 
 interface DecodedToken {
   admin_id: string
-  user_id: string
   user_name: string
   user_role: string
   exp: number
@@ -56,7 +55,6 @@ interface DecodedToken {
 interface Ticket {
   ticket_id: number
   admin_id: string
-  user_id: string
   ticket_title: string
   ticket_description: string
   is_ticket_cleared: boolean
@@ -91,7 +89,7 @@ export default function Tickets() {
           toast.error("Session expired. Please login again.")
           return
         }
-        setAdminId(decoded.admin_id || decoded.user_id)
+        setAdminId(decoded.admin_id || decoded.admin_id)
       } catch (error) {
         console.error("Error decoding token:", error)
         toast.error("Invalid token. Please log in again.")
@@ -195,7 +193,7 @@ export default function Tickets() {
       const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter(
         (ticket) =>
-          ticket.user_id?.toLowerCase().includes(searchLower) ||
+          ticket.admin_id?.toLowerCase().includes(searchLower) ||
           ticket.ticket_title?.toLowerCase().includes(searchLower) ||
           ticket.ticket_description?.toLowerCase().includes(searchLower)
       )
@@ -315,7 +313,7 @@ export default function Tickets() {
   const totalTickets = tickets.length
   const clearedTickets = tickets.filter(t => t.is_ticket_cleared).length
   const pendingTickets = tickets.filter(t => !t.is_ticket_cleared).length
-  const uniqueUsers = new Set(tickets.map(t => t.user_id)).size
+  const uniqueUsers = new Set(tickets.map(t => t.admin_id)).size
 
   // Pagination
   const totalPages = Math.ceil(filteredTickets.length / recordsPerPage)
@@ -568,7 +566,7 @@ export default function Tickets() {
                             <User className="h-4 w-4 text-purple-600" />
                           </div>
                           <span className="font-medium text-sm text-gray-900 font-mono">
-                            {ticket.user_id}
+                            {ticket.admin_id}
                           </span>
                         </div>
                       </TableCell>
@@ -723,7 +721,7 @@ export default function Tickets() {
                     <Label className="text-sm font-medium text-gray-600">User ID</Label>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-400" />
-                      <p className="text-sm font-medium text-gray-900 font-mono">{selectedTicket.user_id}</p>
+                      <p className="text-sm font-medium text-gray-900 font-mono">{selectedTicket.admin_id}</p>
                     </div>
                   </div>
 

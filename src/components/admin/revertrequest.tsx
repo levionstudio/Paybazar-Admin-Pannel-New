@@ -25,7 +25,6 @@ import axios from "axios";
 
 interface DecodedToken {
   admin_id: string;
-  user_id: string;
   user_name: string;
   user_role: string;
   exp: number;
@@ -72,7 +71,7 @@ export default function RefundRequest() {
         toast.error("Session expired. Please login again.");
         return;
       }
-      setAdminId(decoded.user_id);
+      setAdminId(decoded.admin_id);
     } catch (error) {
       toast.error("Invalid session. Please login again.");
     }

@@ -60,15 +60,15 @@ const retailerSchema = z.object({
 type RetailerFormData = z.infer<typeof retailerSchema>
 
 interface DecodedToken {
-  user_id: string
+  admin_id: string
   exp: number
 }
 
 interface Distributor {
   distributor_id: string
-  name: string
-  email?: string
-  phone?: string
+  distributor_name: string
+  distributor_email?: string
+  distributor_phone?: string
   business_name?: string
 }
 
@@ -132,10 +132,26 @@ const CreateRetailerPage = () => {
       }
 
       console.log("✅ Auth token found:", token.substring(0, 20) + "...");
+      
+      let adminId: string;
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        adminId = decoded.admin_id;
+      } catch {
+        console.error("❌ Failed to decode token");
+        toast({
+          title: "Session Error",
+          description: "Invalid session token",
+          variant: "destructive",
+        });
+        navigate("/login");
+        return;
+      }
+      
       setLoadingDistributors(true);
       
       try {
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/all`;
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}`;
         console.log("📡 API URL:", apiUrl);
         
         const res = await axios.get(apiUrl, {
@@ -154,11 +170,10 @@ const CreateRetailerPage = () => {
           // Map to correct structure matching Go backend
           distributorList = distributorList.map((d: any) => ({
             distributor_id: d.distributor_id,
-            name: d.name,
-            email: d.email,
-            phone: d.phone,
+            distributor_name: d.distributor_name,
+            distributor_email: d.distributor_email,
+            distributor_phone: d.distributor_phone,
             business_name: d.business_name,
-            ...d
           }));
           
           distributorList = distributorList.filter((d: any) => d.distributor_id);
@@ -253,27 +268,26 @@ const CreateRetailerPage = () => {
     const selectedDist = distributors.find(d => d.distributor_id === selectedDistributorId);
     console.log("✅ Selected Distributor Details:", selectedDist);
 
-  const payload = {
-  distributor_id: selectedDistributorId,
-  name: data.name,
-  phone: data.phone,
-  email: data.email,
-  password: data.password,
-  aadhar_number: data.aadhar,
-  pan_number: data.pan,
-  date_of_birth: new Date(data.dob).toISOString(),
-  gender: data.gender,
-  city: data.city,
-  state: data.state,
-  address: data.address,
-  pincode: data.pincode,
-  business_name: data.business_name,
-  business_type: data.business_type,
+    const payload = {
+      distributor_id: selectedDistributorId,
+      retailer_name: data.name,
+      retailer_phone: data.phone,
+      retailer_email: data.email,
+      retailer_password: data.password,
+      aadhar_number: data.aadhar,
+      pan_number: data.pan,
+      date_of_birth: new Date(data.dob).toISOString(),
+      gender: data.gender,
+      city: data.city,
+      state: data.state,
+      address: data.address,
+      pincode: data.pincode,
+      business_name: data.business_name,
+      business_type: data.business_type,
 
-  // ✅ ONLY send gst_number if user entered it
-  ...(data.gst_number ? { gst_number: data.gst_number } : {}),
-};
-
+      // ✅ ONLY send gst_number if user entered it
+      ...(data.gst_number ? { gst_number: data.gst_number } : {}),
+    };
 
     console.log("📦 Request Payload:", JSON.stringify(payload, null, 2));
     console.log("📡 API Endpoint:", `${import.meta.env.VITE_API_BASE_URL}/retailer/create`);
@@ -298,7 +312,7 @@ const CreateRetailerPage = () => {
         console.log("✅ Retailer created successfully!");
         toast({
           title: "Success",
-          description: res.data.message || `Retailer ${data.name} created successfully under ${selectedDist?.name}.`,
+          description: res.data.message || `Retailer ${data.name} created successfully under ${selectedDist?.distributor_name}.`,
         });
         reset();
         setPassword("");
@@ -399,7 +413,7 @@ const CreateRetailerPage = () => {
                         </div>
                       ) : (
                         distributors.map((d, index) => {
-                          const displayName = d.name || d.email || `Distributor-${index + 1}`;
+                          const displayName = d.distributor_id || d.distributor_email || `Distributor-${index + 1}`;
                           const businessInfo = d.business_name ? ` - ${d.business_name}` : '';
                           const displayText = `${displayName}${businessInfo}`;
                           

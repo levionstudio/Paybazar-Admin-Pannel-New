@@ -39,7 +39,6 @@ import * as XLSX from "xlsx";
 
 interface DecodedToken {
   admin_id: string;
-  user_id: string;
   user_name: string;
   user_role: string;
   exp: number;
@@ -96,7 +95,7 @@ const RevertTransactionHistory = () => {
           toast.error("Session expired. Please login again.");
           return;
         }
-        setAdminId(decoded.admin_id || decoded.user_id);
+        setAdminId(decoded.admin_id || decoded.admin_id);
       } catch (error) {
         console.error("Error decoding token:", error);
         toast.error("Invalid token. Please log in again.");

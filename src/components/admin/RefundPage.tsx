@@ -63,7 +63,7 @@ interface DecodedToken {
 }
 
 interface User {
-  user_id: string;
+  admin_id: string;
   user_name: string;
   user_email?: string;
   user_phone?: string;
@@ -267,7 +267,7 @@ const PayoutTransactionPage = () => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Payout Transactions");
 
-      const selectedUser = users.find(u => u.user_id === selectedUserId);
+      const selectedUser = users.find(u => u.admin_id === selectedUserId);
       const userName = selectedUser?.user_name || "User";
       const timestamp = new Date().toISOString().slice(0, 10);
       
@@ -407,7 +407,7 @@ const PayoutTransactionPage = () => {
                   </div>
                 ) : (
                   users.map((user) => (
-                    <SelectItem key={user.user_id} value={user.user_id}>
+                    <SelectItem key={user.admin_id} value={user.admin_id}>
                       {user.user_name}
                       {user.user_email && ` (${user.user_email})`}
                     </SelectItem>

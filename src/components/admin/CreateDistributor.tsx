@@ -25,48 +25,61 @@ import { Eye, EyeOff, Loader2, User, Mail, Phone, CreditCard, Building, MapPin, 
 import { Textarea } from "@/components/ui/textarea";
 
 const distributorSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().email("Invalid email address").max(255),
-  password: z
+  distributor_name: z.string().min(3).max(100),
+
+  distributor_email: z.string().email(),
+
+  distributor_password: z
     .string()
-    .min(6, "Password must be at least 6 characters")
-    .max(100),
-  phone: z.string().regex(/^[1-9]\d{9}$/, "Enter a valid 10-digit phone number"),
-  aadhar: z.string().regex(/^\d{12}$/, "Aadhar must be 12 digits"),
+    .min(6)
+    .regex(/[A-Z]/, "Must contain uppercase letter")
+    .regex(/[a-z]/, "Must contain lowercase letter")
+    .regex(/[^A-Za-z0-9]/, "Must contain special character"),
+
+  distributor_phone: z.string().regex(/^[1-9]\d{9}$/, "Invalid phone number"),
+
+  aadhar: z.string().regex(/^[2-9]\d{11}$/, "Invalid Aadhar number"),
+
   pan: z
     .string()
-    .regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Enter a valid PAN number")
-    .transform((val) => val.toUpperCase()),
+    .regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Invalid PAN number")
+    .transform((v) => v.toUpperCase()),
+
   dob: z
     .string()
-    .refine((val) => !Number.isNaN(Date.parse(val)), "Enter a valid date")
-    .refine(
-      (val) => new Date(val) <= new Date(),
-      "Date of birth cannot be in the future"
-    ),
-  gender: z.enum(["MALE", "FEMALE", "OTHER"], {
-    required_error: "Please select a gender",
-  }),
-  city: z.string().min(2, "City is required"),
-  state: z.string().min(2, "State is required"),
-  address: z.string().min(5, "Address must be at least 5 characters"),
-  pincode: z.string().regex(/^\d{6}$/, "Pincode must be 6 digits"),
-  business_name: z.string().min(2, "Business name must be at least 2 characters").max(255),
-  business_type: z.string().min(1, "Business type is required"),
-  gst_number: z.string().optional().refine((val) => !val || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(val), "Enter a valid GST number"),
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Invalid date")
+    .refine((v) => new Date(v) <= new Date(), "DOB cannot be in the future"),
+
+  gender: z.enum(["MALE", "FEMALE", "OTHER"]),
+
+  city: z.string().min(1),
+  state: z.string().min(1),
+  address: z.string().min(5),
+
+  pincode: z.string().regex(/^\d{6}$/, "Invalid pincode"),
+
+  business_name: z.string().min(1),
+  business_type: z.string().min(1),
+
+  gst_number: z
+    .string()
+    .optional()
+    .transform((v) => (v?.trim() === "" ? undefined : v))
+    .refine((v) => !v || v.length === 15, "GST must be 15 characters"),
 });
+
 
 type DistributorFormData = z.infer<typeof distributorSchema>;
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   exp: number;
 }
 
 interface MasterDistributor {
   master_distributor_id: string;
-  name: string;
-  email?: string;
+  master_distributor_name: string;
+  master_distributor_email: string;
   [key: string]: any;
 }
 
@@ -129,7 +142,7 @@ const CreateDistributorPage = () => {
       setLoadingMasterDistributors(true);
       try {
         const decoded = jwtDecode<DecodedToken>(token);
-        const adminId = decoded.user_id;
+        const adminId = decoded.admin_id;
         const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`;
         
         const res = await axios.get(apiUrl, {
@@ -146,9 +159,9 @@ const CreateDistributorPage = () => {
           // Map to correct structure matching Go backend
           distributors = distributors.map((md: any) => ({
             master_distributor_id: md.master_distributor_id,
-            name: md.name,
-            email: md.email,
-            phone: md.phone,
+            master_distributor_name: md.master_distributor_name,
+            master_distributor_email: md.master_distributor_email,
+            master_distributor_phone: md.master_distributor_phone,
             business_name: md.business_name,
             ...md
           }));
@@ -197,102 +210,107 @@ const CreateDistributorPage = () => {
 
   const genderValue = watch("gender");
 
-  const onSubmit = async (data: DistributorFormData) => {
-    const token = getAuthToken();
-    if (!token) {
-      toast({
-        title: "Session Expired",
-        description: "Please log in again.",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
+const onSubmit = async (data: DistributorFormData) => {
+  const token = getAuthToken();
+  if (!token) {
+    toast({
+      title: "Session Expired",
+      description: "Please log in again.",
+      variant: "destructive",
+    });
+    navigate("/login");
+    return;
+  }
 
-    if (!selectedMasterDistributorId) {
-      toast({
-        title: "Selection Required",
-        description: "Please select a master distributor.",
-        variant: "destructive",
-      });
-      return;
-    }
+  if (!selectedMasterDistributorId) {
+    toast({
+      title: "Selection Required",
+      description: "Please select a master distributor.",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    const selectedMD = masterDistributors.find(md => md.master_distributor_id === selectedMasterDistributorId);
-    
-    if (!selectedMD) {
-      toast({
-        title: "Invalid Selection",
-        description: "Selected master distributor not found. Please select again.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const selectedMD = masterDistributors.find(
+    (md) => md.master_distributor_id === selectedMasterDistributorId
+  );
 
-    // Match Go backend CreateDistributorRequestModel structure
-    const requestPayload = {
-      master_distributor_id: selectedMasterDistributorId,
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      password: data.password,
-      aadhar_number: data.aadhar,
-      pan_number: data.pan,
-      date_of_birth: new Date(data.dob).toISOString(), // Convert to ISO datetime
-      gender: data.gender,
-      city: data.city,
-      state: data.state,
-      address: data.address,
-      pincode: data.pincode,
-      business_name: data.business_name,
-      business_type: data.business_type,
-      gst_number: data.gst_number || "",
-    };
+  if (!selectedMD) {
+    toast({
+      title: "Invalid Selection",
+      description: "Selected master distributor not found. Please select again.",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/distributor/create`,
-        requestPayload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      const res = response.data;
-
-      if (res.status === "success" || (response.status >= 200 && response.status < 300)) {
-        toast({
-          title: "Success",
-          description: res.message || `Distributor ${data.name} created successfully under ${selectedMD.name}.`,
-        });
-        reset();
-        setPassword("");
-        setSelectedMasterDistributorId("");
-      } else {
-        toast({
-          title: "Creation Failed",
-          description: res.message || res.msg || "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      console.error("Error creating distributor:", error);
-      
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.msg || 
-                          error.message || 
-                          "Failed to create distributor. Please try again.";
-      
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
+  // Build the payload object directly instead of using a function
+  const requestPayload = {
+    master_distributor_id: selectedMasterDistributorId,
+    distributor_name: data.distributor_name.trim(),
+    distributor_email: data.distributor_email.trim().toLowerCase(),
+    distributor_password: data.distributor_password,
+    distributor_phone: data.distributor_phone.trim(),
+    aadhar_number: data.aadhar.trim(),
+    pan_number: data.pan.toUpperCase(),
+    date_of_birth: `${data.dob}T00:00:00Z`,
+    gender: data.gender,
+    city: data.city.trim(),
+    state: data.state.trim(),
+    address: data.address.trim(),
+    pincode: data.pincode.trim(),
+    business_name: data.business_name.trim(),
+    business_type: data.business_type.trim(),
+    ...(data.gst_number ? { gst_number: data.gst_number.toUpperCase() } : {}),
   };
+
+  try {
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_BASE_URL}/distributor/create`,
+      requestPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const res = response.data;
+
+    if (res.status === "success" || (response.status >= 200 && response.status < 300)) {
+      toast({
+        title: "Success",
+        description:
+          res.message ||
+          `Distributor ${data.distributor_name} created successfully under ${selectedMD.master_distributor_name}.`,
+      });
+      reset();
+      setPassword("");
+      setSelectedMasterDistributorId("");
+    } else {
+      toast({
+        title: "Creation Failed",
+        description: res.message || res.msg || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  } catch (error: any) {
+    console.error("Error creating distributor:", error);
+
+    const errorMessage =
+      error.response?.data?.message ||
+      error.response?.data?.msg ||
+      error.message ||
+      "Failed to create distributor. Please try again.";
+
+    toast({
+      title: "Error",
+      description: errorMessage,
+      variant: "destructive",
+    });
+  }
+};
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -344,7 +362,7 @@ const CreateDistributorPage = () => {
                         </div>
                       ) : (
                         masterDistributors.map((md, index) => {
-                          const displayName = md.name || md.email || `MD-${index + 1}`;
+                          const displayName = md.master_distributor_id || md.master_distributor_email ||md.master_distributor_name || `MD-${index + 1}`;
                           
                           return (
                             <SelectItem
@@ -388,11 +406,11 @@ const CreateDistributorPage = () => {
                   <Input
                     id="name"
                     placeholder="Enter full name"
-                    {...register("name")}
+                    {...register("distributor_name")}
                     className="h-11 bg-white"
                   />
-                  {errors.name && (
-                    <p className="text-sm text-red-600">{errors.name.message}</p>
+                  {errors.distributor_name && (
+                    <p className="text-sm text-red-600">{errors.distributor_name.message}</p>
                   )}
                 </div>
 
@@ -407,12 +425,12 @@ const CreateDistributorPage = () => {
                       id="email"
                       type="email"
                       placeholder="email@example.com"
-                      {...register("email")}
+                      {...register("distributor_email")}
                       className="h-11 pl-10 bg-white"
                     />
                   </div>
-                  {errors.email && (
-                    <p className="text-sm text-red-600">{errors.email.message}</p>
+                  {errors.distributor_email && (
+                    <p className="text-sm text-red-600">{errors.distributor_email.message}</p>
                   )}
                 </div>
 
@@ -427,12 +445,12 @@ const CreateDistributorPage = () => {
                       id="phone"
                       type="tel"
                       placeholder="9876543210"
-                      {...register("phone")}
+                      {...register("distributor_phone")}
                       className="h-11 pl-10 bg-white"
                     />
                   </div>
-                  {errors.phone && (
-                    <p className="text-sm text-red-600">{errors.phone.message}</p>
+                  {errors.distributor_phone && (
+                    <p className="text-sm text-red-600">{errors.distributor_phone.message}</p>
                   )}
                 </div>
 
@@ -446,11 +464,11 @@ const CreateDistributorPage = () => {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      {...register("password")}
+                      {...register("distributor_password")}
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
-                        register("password").onChange(e);
+                        register("distributor_password").onChange(e);
                       }}
                       className="h-11 pr-10 bg-white"
                     />
@@ -494,8 +512,8 @@ const CreateDistributorPage = () => {
                       </p>
                     </div>
                   )}
-                  {errors.password && (
-                    <p className="text-sm text-red-600">{errors.password.message}</p>
+                  {errors.distributor_password && (
+                    <p className="text-sm text-red-600">{errors.distributor_password.message}</p>
                   )}
                 </div>
 

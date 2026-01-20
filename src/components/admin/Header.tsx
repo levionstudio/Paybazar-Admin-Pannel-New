@@ -31,7 +31,7 @@ interface HeaderProps {
 }
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   user_name: string;
   user_role: string;
   exp: number;
@@ -67,7 +67,7 @@ function getAdminFromToken(): { id: string; name: string } | null {
     }
 
     return {
-      id: decoded.user_id,
+      id: decoded.admin_id,
       name: decoded.user_name,
     };
   } catch {

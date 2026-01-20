@@ -35,7 +35,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 interface DecodedToken {
-  user_id: string;
+  admin_id: string;
   user_name: string;
   user_role: string;
   exp: number;
@@ -109,13 +109,13 @@ export function Dashboard() {
         localStorage.removeItem("authToken");
         return null;
       }
-      return decoded.user_id;
+      return decoded.admin_id;
     } catch {
       return null;
     }
   }
 
-  // Initialize adminId from token
+  // Initialize adminId from toke
   useEffect(() => {
     const id = getAdminIdFromToken();
     if (id) {
