@@ -192,7 +192,9 @@ const AdminWalletTransactions = () => {
       );
 
       const raw: WalletTransactionRaw[] = res.data?.data?.transactions || [];
-      const total = res.data?.data?.total_count || 0;
+      const total = res.data?.data?.total_count || res.data?.data?.total || 0;
+
+      console.log(`Raw data from API: ${raw.length} transactions, total_count: ${total}`);
 
       // Client-side date filtering for accuracy
       let filtered = raw;
@@ -221,14 +223,11 @@ const AdminWalletTransactions = () => {
 
       setTransactions(mapped);
       
-      // Use filtered count if we applied client-side filtering, otherwise use server total
-      if (startDate && endDate && raw.length !== filtered.length) {
-        setTotalCount(filtered.length);
-      } else {
-        setTotalCount(total);
-      }
+      // Set total count - use filtered length if we have data, otherwise use backend total
+      const actualCount = mapped.length > 0 ? mapped.length : total;
+      setTotalCount(actualCount);
 
-      console.log(`Loaded ${mapped.length} transactions, total: ${totalCount}`);
+      console.log(`Loaded ${mapped.length} transactions, setting totalCount to: ${actualCount}`);
     } catch (err: any) {
       console.error("Error fetching transactions:", err);
       toast({
@@ -273,20 +272,105 @@ const AdminWalletTransactions = () => {
     startDate !== today || 
     endDate !== today;
 
-  /* -------------------- EXPORT ALL DATA -------------------- */
+  /* -------------------- EXPORT FILTERED DATA -------------------- */
 
   const exportToExcel = async () => {
+    if (!adminId) return;
+
+    // Check if we have any transactions to export
+    if (transactions.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No transactions available to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Exporting...",
+        description: "Preparing Excel file with current view",
+      });
+
+      // Export only the currently displayed/filtered transactions
+      const data = transactions.map((tx, i) => {
+        return {
+          "S.No": indexOfFirstRecord + i + 1,
+          "Date & Time": new Date(tx.createdAt).toLocaleString("en-IN", {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          }),
+          "Transaction ID": tx.id,
+          Type: tx.type,
+          Reason: tx.reason,
+          "Amount (₹)": tx.amount.toFixed(2),
+          "Before Balance (₹)": tx.beforeBalance.toFixed(2),
+          "After Balance (₹)": tx.afterBalance.toFixed(2),
+          Remarks: tx.remarks || "-",
+        };
+      });
+
+      console.log("Prepared data for Excel:", data.length, "rows");
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      
+      // Set column widths for better readability
+      const columnWidths = [
+        { wch: 6 },  // S.No
+        { wch: 20 }, // Date & Time
+        { wch: 30 }, // Transaction ID
+        { wch: 10 }, // Type
+        { wch: 15 }, // Reason
+        { wch: 15 }, // Amount
+        { wch: 18 }, // Before Balance
+        { wch: 18 }, // After Balance
+        { wch: 30 }, // Remarks
+      ];
+      ws['!cols'] = columnWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Wallet Transactions");
+
+      // Create filename with page info
+      const filename = `Admin_Wallet_Transactions_Page${currentPage}_${getTodayDate()}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      console.log(`Excel file created: ${filename}`);
+
+      toast({
+        title: "Success",
+        description: `Exported ${data.length} transaction${data.length !== 1 ? 's' : ''} from current page`,
+      });
+    } catch (err: any) {
+      console.error("Export error:", err);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export transactions",
+        variant: "destructive",
+      });
+    }
+  };
+
+  /* -------------------- EXPORT ALL FILTERED DATA -------------------- */
+
+  const exportAllToExcel = async () => {
     if (!adminId) return;
 
     const token = localStorage.getItem("authToken");
     
     try {
       toast({
-        title: "Exporting...",
-        description: "Fetching all transactions for export",
+        title: "Exporting All...",
+        description: "Fetching all filtered transactions",
       });
 
-      // Fetch ALL transactions without pagination for export
+      // Fetch ALL transactions with current filters (no pagination)
       const params = new URLSearchParams({
         limit: "999999",
         offset: "0",
@@ -305,6 +389,8 @@ const AdminWalletTransactions = () => {
         params.append("end_date", endDate);
       }
 
+      console.log("Export ALL API call with params:", params.toString());
+
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/wallet/get/transactions/admin/${adminId}?${params.toString()}`,
         {
@@ -314,39 +400,93 @@ const AdminWalletTransactions = () => {
         }
       );
 
+      console.log("Export ALL API response:", res.data);
+
       let raw: WalletTransactionRaw[] = res.data?.data?.transactions || [];
 
-      // Apply client-side date filtering
+      console.log(`Fetched ${raw.length} transactions for export`);
+
+      // Apply client-side date filtering if needed
       if (startDate && endDate) {
+        const beforeFilter = raw.length;
         raw = raw.filter((tx) =>
           isTransactionInDateRange(tx.created_at, startDate, endDate)
         );
+        console.log(`Date filter applied: ${beforeFilter} -> ${raw.length}`);
+      }
+
+      if (raw.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No transactions found to export",
+          variant: "destructive",
+        });
+        return;
       }
 
       const data = raw.map((tx, i) => {
         const isCredit = !!tx.credit_amount;
+        const amount = parseFloat(tx.credit_amount || tx.debit_amount || "0");
+        const beforeBalance = parseFloat(tx.before_balance || "0");
+        const afterBalance = parseFloat(tx.after_balance || "0");
+
         return {
           "S.No": i + 1,
-          "Date & Time": new Date(tx.created_at).toLocaleString("en-IN"),
+          "Date & Time": new Date(tx.created_at).toLocaleString("en-IN", {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          }),
           "Transaction ID": tx.wallet_transaction_id,
           Type: isCredit ? "CREDIT" : "DEBIT",
           Reason: tx.transaction_reason,
-          "Amount (₹)": parseFloat(tx.credit_amount || tx.debit_amount || "0").toFixed(2),
-          "Before Balance": parseFloat(tx.before_balance).toFixed(2),
-          "After Balance": parseFloat(tx.after_balance).toFixed(2),
-          Remarks: tx.remarks,
+          "Amount (₹)": amount.toFixed(2),
+          "Before Balance (₹)": beforeBalance.toFixed(2),
+          "After Balance (₹)": afterBalance.toFixed(2),
+          Remarks: tx.remarks || "-",
         };
       });
 
+      console.log("Prepared data for Excel:", data.length, "rows");
+
       const ws = XLSX.utils.json_to_sheet(data);
+      
+      // Set column widths for better readability
+      const columnWidths = [
+        { wch: 6 },  // S.No
+        { wch: 20 }, // Date & Time
+        { wch: 30 }, // Transaction ID
+        { wch: 10 }, // Type
+        { wch: 15 }, // Reason
+        { wch: 15 }, // Amount
+        { wch: 18 }, // Before Balance
+        { wch: 18 }, // After Balance
+        { wch: 30 }, // Remarks
+      ];
+      ws['!cols'] = columnWidths;
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Wallet Transactions");
 
-      XLSX.writeFile(wb, `Admin_Wallet_Transactions_${getTodayDate()}.xlsx`);
+      // Create filename with filter info
+      let filterSuffix = "";
+      if (typeFilter !== "ALL") filterSuffix += `_${typeFilter}`;
+      if (startDate && endDate && (startDate !== today || endDate !== today)) {
+        filterSuffix += `_${startDate}_to_${endDate}`;
+      }
+      
+      const filename = `Admin_Wallet_Transactions_All${filterSuffix}_${getTodayDate()}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      console.log(`Excel file created: ${filename}`);
 
       toast({
         title: "Success",
-        description: `Exported ${data.length} transactions to Excel`,
+        description: `Exported all ${data.length} filtered transaction${data.length !== 1 ? 's' : ''} to Excel`,
       });
     } catch (err: any) {
       console.error("Export error:", err);
@@ -538,15 +678,29 @@ const AdminWalletTransactions = () => {
                 {indexOfLastRecord} of{" "}
                 {totalCount} entries
               </span>
-              <Button
-                onClick={exportToExcel}
-                variant="outline"
-                size="sm"
-                disabled={totalCount === 0}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={exportToExcel}
+                  variant="outline"
+                  size="sm"
+                  disabled={totalCount === 0 && transactions.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Page
+                </Button>
+                {totalPages > 1 && (
+                  <Button
+                    onClick={exportAllToExcel}
+                    variant="default"
+                    size="sm"
+                    disabled={totalCount === 0 && transactions.length === 0}
+                    className="paybazaar-button"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export All
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Edit, RefreshCw, User, Building, MapPin } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, Building, MapPin, CheckCircle, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 
@@ -768,7 +768,42 @@ allowedKeys.forEach((key) => {
                     </div>
                   </div>
                 </div>
+                    <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <h3 className="font-semibold text-lg">Account Status</h3>
+                  </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select
+                      value={editFormData.is_blocked ? "blocked" : "active"}
+                      onValueChange={(value) =>
+                        setEditFormData({
+                          ...editFormData,
+                          is_blocked: value === "blocked",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span>Active</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="blocked">
+                          <div className="flex items-center gap-2">
+                            <Ban className="h-4 w-4 text-red-600" />
+                            <span>Block</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               
               </div>
             )

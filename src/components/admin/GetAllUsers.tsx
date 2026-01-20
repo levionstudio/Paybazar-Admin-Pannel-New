@@ -56,6 +56,7 @@ interface Retailer {
   is_blocked: boolean;
   created_at: string;
   updated_at: string;
+  mpin: string;
 }
 
 interface DecodedToken {
@@ -74,6 +75,7 @@ interface EditFormData {
   business_name: string;
   business_type: string;
   gst_number: string;
+
 }
 
 /* -------------------- AUTH HELPER -------------------- */
@@ -834,6 +836,9 @@ export default function GetAllRetailers() {
                     </div>
                   </div>
                 </div>
+
+
+   
               </div>
             )
           )}

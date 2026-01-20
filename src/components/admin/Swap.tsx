@@ -51,28 +51,28 @@ interface DecodedToken {
 
 interface MasterDistributor {
   master_distributor_id: string;
-  name: string;
-  email: string;
-  phone: string;
+  master_distributor_name: string;
+  master_distributor_email: string;
+  master_distributor_phone: string;
   admin_id: string;
 }
 
+
 interface Distributor {
   distributor_id: string;
-  name: string;
-  email: string;
-  phone: string;
+  distributor_name: string;
+  distributor_email: string;
+  distributor_phone: string;
   master_distributor_id: string;
-  master_distributor_name?: string;
 }
+
 
 interface Retailer {
   retailer_id: string;
-  name: string;
-  email: string;
-  phone: string;
+  retailer_name: string;
+  retailer_email: string;
+  retailer_phone: string;
   distributor_id: string;
-  distributor_name?: string;
   master_distributor_id: string;
 }
 
@@ -144,26 +144,26 @@ export function UserHierarchySwap() {
 
     try {
       // Fetch all Master Distributors
-      const mdResponse = await axios.get(
-        `${API_BASE_URL}/md/get/admin/${adminId}`,
-        getAuthHeaders()
-      );
+   const mdResponse = await axios.get(
+  `${API_BASE_URL}/md/get/admin/${adminId}`,
+  getAuthHeaders()
+);
       const masterDistributors = mdResponse.data.data.master_distributors || [];
       setAllMDs(masterDistributors);
 
       // Fetch all Distributors
-      const distResponse = await axios.get(
-        `${API_BASE_URL}/distributor/get/all`,
-        getAuthHeaders()
-      );
+     const distResponse = await axios.get(
+  `${API_BASE_URL}/distributor/get/admin/${adminId}`,
+  getAuthHeaders()
+);
       const distributors = distResponse.data.data.distributors || [];
       setAllDistributors(distributors);
 
       // Fetch all Retailers
-      const retailerResponse = await axios.get(
-        `${API_BASE_URL}/retailer/get/all`,
-        getAuthHeaders()
-      );
+    const retailerResponse = await axios.get(
+  `${API_BASE_URL}/retailer/get/admin/${adminId}`,
+  getAuthHeaders()
+);
       const retailers = retailerResponse.data.data.retailers || [];
 
       // Build hierarchy
@@ -305,22 +305,22 @@ export function UserHierarchySwap() {
     const searchLower = searchTerm.toLowerCase();
     const mdMatch = 
       node.md.master_distributor_id.toLowerCase().includes(searchLower) ||
-      node.md.name.toLowerCase().includes(searchLower) ||
-      node.md.email.toLowerCase().includes(searchLower);
+      node.md.master_distributor_name.toLowerCase().includes(searchLower) ||
+      node.md.master_distributor_email.toLowerCase().includes(searchLower);
     
     const distMatch = node.distributors.some(
       (d) =>
         d.distributor_id.toLowerCase().includes(searchLower) ||
-        d.name.toLowerCase().includes(searchLower) ||
-        d.email.toLowerCase().includes(searchLower)
+        d.distributor_name.toLowerCase().includes(searchLower) ||
+        d.distributor_email.toLowerCase().includes(searchLower)
     );
     
     const retailerMatch = node.distributors.some((d) =>
       d.retailers.some(
         (r) =>
           r.retailer_id.toLowerCase().includes(searchLower) ||
-          r.name.toLowerCase().includes(searchLower) ||
-          r.email.toLowerCase().includes(searchLower)
+          r.retailer_name.toLowerCase().includes(searchLower) ||
+          r.retailer_email.toLowerCase().includes(searchLower)
       )
     );
     
@@ -488,13 +488,13 @@ export function UserHierarchySwap() {
                           {node.md.master_distributor_id}
                         </TableCell>
                         <TableCell className="font-medium text-foreground">
-                          {node.md.name}
+                          {node.md.master_distributor_name}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {node.md.email}
+                          {node.md.master_distributor_email}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {node.md.phone}
+                          {node.md.master_distributor_phone}
                         </TableCell>
                         <TableCell>
                           <Badge className="bg-primary/10 text-primary border-primary/20">
@@ -535,13 +535,13 @@ export function UserHierarchySwap() {
                                 {dist.distributor_id}
                               </TableCell>
                               <TableCell className="font-medium text-foreground">
-                                {dist.name}
+                                {dist.distributor_name}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {dist.email}
+                                {dist.distributor_email}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {dist.phone}
+                                {dist.distributor_phone}
                               </TableCell>
                               <TableCell>
                                 <Badge className="bg-accent/10 text-accent border-accent/20">
@@ -576,13 +576,13 @@ export function UserHierarchySwap() {
                                     {retailer.retailer_id}
                                   </TableCell>
                                   <TableCell className="font-medium text-foreground">
-                                    {retailer.name}
+                                    {retailer.retailer_name}
                                   </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
-                                    {retailer.email}
+                                    {retailer.retailer_email}
                                   </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
-                                    {retailer.phone}
+                                    {retailer.retailer_phone}
                                   </TableCell>
                                   <TableCell>
                                     <Badge className="bg-primary-glow/10 text-primary-glow border-primary-glow/20">
@@ -639,7 +639,7 @@ export function UserHierarchySwap() {
                       ? (selectedItem as Distributor).distributor_id
                       : (selectedItem as Retailer).retailer_id}
                   </span>{" "}
-                  - {selectedItem.name}
+                  - {selectedItem.master_distributor_id}
                 </p>
               </div>
             )}
@@ -655,7 +655,7 @@ export function UserHierarchySwap() {
                   <SelectContent>
                     {allMDs.map((md) => (
                       <SelectItem key={md.master_distributor_id} value={md.master_distributor_id}>
-                        {md.master_distributor_id} - {md.name}
+                        {md.master_distributor_id} - {md.master_distributor_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -673,7 +673,7 @@ export function UserHierarchySwap() {
                   <SelectContent>
                     {allMDs.map((md) => (
                       <SelectItem key={md.master_distributor_id} value={md.master_distributor_id}>
-                        {md.master_distributor_id} - {md.name}
+                        {md.master_distributor_id} - {md.master_distributor_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -694,7 +694,7 @@ export function UserHierarchySwap() {
                       .filter((d) => d.master_distributor_id === newMDId)
                       .map((dist) => (
                         <SelectItem key={dist.distributor_id} value={dist.distributor_id}>
-                          {dist.distributor_id} - {dist.name}
+                          {dist.distributor_id} - {dist.distributor_name}
                         </SelectItem>
                       ))}
                   </SelectContent>

@@ -87,75 +87,90 @@ export default function RefundRequest() {
   };
 
   // Fetch all users when user type changes
-  const fetchUsers = async (type: string) => {
-    if (!type) return;
+const fetchUsers = async (type: string) => {
+  if (!type || !adminId) return;
 
-    setIsLoadingUsers(true);
-    setUserOptions([]);
-    setSelectedUserId("");
-    setUserDetails(null);
+  setIsLoadingUsers(true);
+  setUserOptions([]);
+  setSelectedUserId("");
+  setUserDetails(null);
 
-    try {
-      const token = localStorage.getItem("authToken");
-      let endpoint = "";
+  try {
+    const token = localStorage.getItem("authToken");
+    let endpoint = "";
 
-      switch (type) {
-        case "master-distributor":
-          endpoint = import.meta.env.VITE_API_BASE_URL + "/md/get/all";
-          break;
-        case "distributor":
-          endpoint = import.meta.env.VITE_API_BASE_URL + "/distributor/get/all";
-          break;
-        case "retailer":
-          endpoint =  import.meta.env.VITE_API_BASE_URL + "/retailer/get/all";
-          break;
-      }
+    switch (type) {
+      case "master-distributor":
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`;
+        break;
 
-      const { data } = await axios.get(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      case "distributor":
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}`;
+        break;
 
-      if (data.status === "success") {
-        let users: UserOption[] = [];
+      case "retailer":
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}`;
+        break;
 
-        if (type === "master-distributor") {
-          users = (data.data.master_distributors || []).map((md: any) => ({
-            id: md.master_distributor_id,
-            name: md.name,
-            phone: md.phone,
-            balance: parseFloat(md.wallet_balance || "0"),
-          }));
-        } else if (type === "distributor") {
-          users = (data.data.distributors || []).map((dist: any) => ({
-            id: dist.distributor_id,
-            name: dist.name,
-            phone: dist.phone,
-            balance: parseFloat(dist.wallet_balance || "0"),
-          }));
-        } else if (type === "retailer") {
-          users = (data.data.retailers || []).map((ret: any) => ({
-            id: ret.retailer_id,
-            name: ret.name,
-            phone: ret.phone,
-            balance: parseFloat(ret.wallet_balance || "0"),
-          }));
-        }
-
-        setUserOptions(users);
-        toast.success(`Loaded ${users.length} ${getUserTypeLabel(type)}(s)`);
-      }
-    } catch (error: any) {
-      console.error("Error fetching users:", error);
-      toast.error(
-        error.response?.data?.message || `Failed to fetch ${getUserTypeLabel(type)}s`
-      );
-    } finally {
-      setIsLoadingUsers(false);
+      default:
+        return;
     }
-  };
+
+    const { data } = await axios.get(endpoint, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (data.status !== "success") {
+      toast.error("Failed to load users");
+      return;
+    }
+
+    let users: UserOption[] = [];
+
+    // ✅ CORRECT MAPPING (MATCH BACKEND)
+    if (type === "master-distributor") {
+      users = (data.data.master_distributors || []).map((md: any) => ({
+        id: md.master_distributor_id,
+        name: md.master_distributor_name,
+        phone: md.master_distributor_phone,
+        balance: Number(md.wallet_balance || 0),
+      }));
+    }
+
+    if (type === "distributor") {
+      users = (data.data.distributors || []).map((dist: any) => ({
+        id: dist.distributor_id,
+        name: dist.distributor_name,
+        phone: dist.distributor_phone,
+        balance: Number(dist.wallet_balance || 0),
+      }));
+    }
+
+    if (type === "retailer") {
+      users = (data.data.retailers || []).map((ret: any) => ({
+        id: ret.retailer_id,
+        name: ret.retailer_name,
+        phone: ret.retailer_phone,
+        balance: Number(ret.wallet_balance || 0),
+      }));
+    }
+
+    setUserOptions(users);
+    toast.success(`Loaded ${users.length} ${getUserTypeLabel(type)}(s)`);
+
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    toast.error(
+      error.response?.data?.message || "Failed to fetch users"
+    );
+  } finally {
+    setIsLoadingUsers(false);
+  }
+};
+
 
 const fetchUserDetails = async (userId: string) => {
   if (!userId || !userType) return;
@@ -166,25 +181,23 @@ const fetchUserDetails = async (userId: string) => {
 
     switch (userType) {
       case "master-distributor":
-        endpoint = import.meta.env.VITE_API_BASE_URL + `/md/get/md/${userId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/md/${userId}`;
         break;
+
       case "distributor":
-        endpoint = import.meta.env.VITE_API_BASE_URL + `/distributor/get/distributor/${userId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/distributor/${userId}`;
         break;
+
       case "retailer":
-        endpoint =  import.meta.env.VITE_API_BASE_URL + `/retailer/get/retailer/${userId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/retailer/${userId}`;
         break;
     }
-
-    console.log("Fetching user details from:", endpoint);
 
     const { data } = await axios.get(endpoint, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-
-    console.log("User details response:", data);
 
     if (data.status !== "success") {
       toast.error("Failed to fetch user details");
@@ -193,44 +206,36 @@ const fetchUserDetails = async (userId: string) => {
 
     let user: any;
 
-    // ✅ HANDLE EACH RESPONSE SHAPE CORRECTLY
     if (userType === "master-distributor") {
       user = data.data.master_distributor;
     } else if (userType === "distributor") {
-      // For distributor, the response is directly in data.data (single object)
-      user = data.data.distributor || data.data;
+      user = data.data.distributor;
     } else if (userType === "retailer") {
-      // For retailer, the response is directly in data.data (single object)
-      user = data.data.retailer || data.data;
+      user = data.data.retailer;
     }
-
-    console.log("Extracted user object:", user);
 
     if (!user) {
       toast.error("User not found");
       return;
     }
 
-    // ✅ NORMALIZE DATA - handle both PascalCase and camelCase
-    const normalizedDetails = {
-      name: user.Name || user.name || "N/A",
-      phone: user.Phone || user.phone || "N/A",
+    setUserDetails({
+      name:
+        user.master_distributor_name ||
+        user.distributor_name ||
+        user.retailer_name,
+      phone:
+        user.master_distributor_phone ||
+        user.distributor_phone ||
+        user.retailer_phone,
       userId:
-        user.MasterDistributorID ||
-        user.DistributorID ||
-        user.RetailerID ||
         user.master_distributor_id ||
         user.distributor_id ||
-        user.retailer_id ||
-        userId, // Fallback to the passed userId
-      currentBalance: Number(
-        user.WalletBalance ?? user.wallet_balance ?? 0
-      ),
-    };
+        user.retailer_id,
+      currentBalance: Number(user.wallet_balance || 0),
+    });
 
-    console.log("Normalized user details:", normalizedDetails);
-    setUserDetails(normalizedDetails);
-    toast.success("User details loaded successfully");
+    toast.success("User details loaded");
 
   } catch (error: any) {
     console.error("Error fetching user details:", error);
@@ -239,6 +244,7 @@ const fetchUserDetails = async (userId: string) => {
     );
   }
 };
+
 
 
   const handleUserTypeChange = (value: string) => {

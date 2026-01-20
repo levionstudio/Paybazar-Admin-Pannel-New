@@ -615,7 +615,7 @@ export function FundRequest() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
+                // max={new Date().toISOString().split('T')[0]}
                 className="bg-white"
               />
             </div>
