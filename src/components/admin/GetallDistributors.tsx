@@ -72,6 +72,7 @@ interface EditFormData {
   business_type: string;
   gst_number: string;
   is_blocked: boolean;
+  kyc_status: boolean;
 }
 
 /* -------------------- AUTH HELPER -------------------- */
@@ -114,6 +115,7 @@ export default function GetAllDistributor() {
     business_type: "",
     gst_number: "",
     is_blocked: false,
+    kyc_status: false,
   });
   const itemsPerPage = 10;
 
@@ -259,6 +261,7 @@ export default function GetAllDistributor() {
         business_type: distData.business_type ?? "",
         gst_number: distData.gst_number ?? "",
         is_blocked: Boolean(distData.is_blocked),
+        kyc_status: Boolean(distData.kyc_status),
       });
 
       toast.success("Profile loaded successfully");
@@ -307,6 +310,8 @@ export default function GetAllDistributor() {
       "business_name",
       "business_type",
       "gst_number",
+      "kyc_status",
+      "is_blocked",
     ];
 
     allowedKeys.forEach((key) => {
@@ -318,12 +323,12 @@ export default function GetAllDistributor() {
       }
     });
 
+    
     if (Object.keys(payload).length === 1) {
       toast.info("No changes detected");
       return;
     }
 
-    console.log("UPDATE PAYLOAD:", payload);
 
     try {
       setIsUpdating(true);
@@ -844,6 +849,44 @@ export default function GetAllDistributor() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <h3 className="font-semibold text-lg">KYC Status</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select
+                      value={editFormData.kyc_status ? "blocked" : "active"}
+                      onValueChange={(value) =>
+                        setEditFormData({
+                          ...editFormData,
+                          kyc_status: value === "blocked",
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span>Active</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="blocked">
+                          <div className="flex items-center gap-2">
+                            <Ban className="h-4 w-4 text-red-600" />
+                            <span>Blocked</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
               </div>
             )
           )}
