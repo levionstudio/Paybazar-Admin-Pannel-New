@@ -384,7 +384,7 @@ const PayoutTransactionPage = () => {
         "S.No": i + 1,
         "Date & Time": formatDate(t.created_at),
         "Order ID": t.order_id,
-        "Transaction ID": t.payout_transaction_id,
+        "Transaction ID": t.operator_transaction_id || "-",
         "Mobile": t.mobile_number,
         "Beneficiary Name": t.beneficiary_name,
         "Bank": t.beneficiary_bank_name,
@@ -604,7 +604,7 @@ const PayoutTransactionPage = () => {
             <TableBody>
               {paginatedTransactions.map((tx, idx) => (
                 <TableRow
-                  key={tx.payout_transaction_id}
+                  key={tx.operator_transaction_id}
                   className={`border-b hover:bg-gray-50 ${
                     idx % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                   }`}
@@ -1166,7 +1166,7 @@ const PayoutTransactionPage = () => {
                 <div className="col-span-2">
                   <Label className="text-gray-600 text-xs">Payout Transaction ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.payout_transaction_id}
+                    {selectedTransaction.operator_transaction_id}
                   </p>
                 </div>
 
