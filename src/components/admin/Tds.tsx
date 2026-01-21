@@ -42,7 +42,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, RefreshCw, Eye, CheckCircle, XCircle, Download, Search, Calendar, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, RefreshCw, Eye, Download, Search, Calendar, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DecodedToken {
@@ -58,29 +58,20 @@ interface User {
   [key: string]: any;
 }
 
-interface PayoutTransaction {
-  payout_transaction_id: string;
-  partner_request_id: string;
-  operator_transaction_id?: string;
-  retailer_id: string;
-  order_id: string;
-  mobile_number: string;
-  beneficiary_bank_name: string;
-  beneficiary_name: string;
-  beneficiary_account_number: string;
-  beneficiary_ifsc_code: string;
-  amount: number;
-  transfer_type: string;
-  admin_commision?: number;
-  master_distributor_commision?: number;
-  distributor_commision?: number;
-  retailer_commision?: number;
-  payout_transaction_status: string;
+interface TDSCommission {
+  tds_commision_id: number;
+  transaction_id: string;
+  user_id: string;
+  user_name: string;
+  commision: number;
+  tds: number;
+  paid_commision: number;
+  pan_number: string;
+  status: string;
   created_at: string;
-  updated_at: string;
 }
 
-const PayoutTransactionPage = () => {
+const TDSCommissionPage = () => {
   const token = localStorage.getItem("authToken");
   const [adminId, setAdminId] = useState("");
   const [users, setUsers] = useState<User[]>([]);
@@ -92,8 +83,8 @@ const PayoutTransactionPage = () => {
   };
   
   // All Transactions Tab States
-  const [allTransactions, setAllTransactions] = useState<PayoutTransaction[]>([]);
-  const [filteredAllTransactions, setFilteredAllTransactions] = useState<PayoutTransaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<TDSCommission[]>([]);
+  const [filteredAllTransactions, setFilteredAllTransactions] = useState<TDSCommission[]>([]);
   const [allSearchTerm, setAllSearchTerm] = useState("");
   const [allStatusFilter, setAllStatusFilter] = useState("ALL");
   const [allStartDate, setAllStartDate] = useState(getTodayDate());
@@ -106,8 +97,8 @@ const PayoutTransactionPage = () => {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
   const [openUserCombobox, setOpenUserCombobox] = useState(false);
-  const [userTransactions, setUserTransactions] = useState<PayoutTransaction[]>([]);
-  const [filteredUserTransactions, setFilteredUserTransactions] = useState<PayoutTransaction[]>([]);
+  const [userTransactions, setUserTransactions] = useState<TDSCommission[]>([]);
+  const [filteredUserTransactions, setFilteredUserTransactions] = useState<TDSCommission[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState("ALL");
   const [userStartDate, setUserStartDate] = useState(getTodayDate());
@@ -120,24 +111,10 @@ const PayoutTransactionPage = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingAllTransactions, setLoadingAllTransactions] = useState(false);
   const [loadingUserTransactions, setLoadingUserTransactions] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
   
   // Dialog states
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<PayoutTransaction | null>(null);
-  const [operatorTxnId, setOperatorTxnId] = useState("");
-
-  // Helper function to format transfer type
-  const getTransferTypeName = (transferType: string) => {
-    switch (transferType) {
-      case "5":
-        return "NEFT";
-      case "6":
-        return "IMPS";
-      default:
-        return transferType;
-    }
-  };
+  const [selectedTransaction, setSelectedTransaction] = useState<TDSCommission | null>(null);
 
   // Decode token
   useEffect(() => {
@@ -237,7 +214,7 @@ const PayoutTransactionPage = () => {
     return queryParams.toString();
   };
 
-  // Fetch all transactions with query params
+  // Fetch all TDS commissions with query params
   const fetchAllTransactions = useCallback(async (applyFilters = false) => {
     if (!token) {
       console.error("❌ fetchAllTransactions: No token available");
@@ -245,7 +222,7 @@ const PayoutTransactionPage = () => {
       return;
     }
 
-    console.log("🔄 Fetching all transactions...");
+    console.log("🔄 Fetching all TDS commissions...");
     setLoadingAllTransactions(true);
     
     try {
@@ -261,17 +238,17 @@ const PayoutTransactionPage = () => {
       console.log("📋 Query params:", queryString);
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get?${queryString}`,
+        `${import.meta.env.VITE_API_BASE_URL}/commision/get/tds?${queryString}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      console.log("📦 All transactions API response:", response.data);
+      console.log("📦 All TDS commissions API response:", response.data);
       
-      const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
+      const list: TDSCommission[] = response.data?.data?.tds_commisions || [];
       
-      console.log(`✅ Processing ${list.length} transactions`);
+      console.log(`✅ Processing ${list.length} TDS commissions`);
       
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -283,26 +260,25 @@ const PayoutTransactionPage = () => {
       // Apply client-side search filter if needed
       if (applyFilters && allSearchTerm.trim()) {
         const filtered = sorted.filter((t) =>
-          t.order_id.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
-          t.mobile_number.includes(allSearchTerm) ||
-          t.beneficiary_name.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
-          t.beneficiary_account_number.includes(allSearchTerm) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(allSearchTerm.toLowerCase()))
+          t.transaction_id.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
+          t.user_id.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
+          t.user_name.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
+          t.pan_number.toLowerCase().includes(allSearchTerm.toLowerCase())
         );
         setFilteredAllTransactions(filtered);
       } else {
         setFilteredAllTransactions(sorted);
       }
       
-      toast.success(`Loaded ${sorted.length} transactions`);
+      toast.success(`Loaded ${sorted.length} TDS commissions`);
     } catch (error: any) {
-      console.error("❌ Error fetching all transactions:", error);
+      console.error("❌ Error fetching all TDS commissions:", error);
       console.error("Error details:", {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
       });
-      toast.error(error.response?.data?.message || "Failed to fetch transactions");
+      toast.error(error.response?.data?.message || "Failed to fetch TDS commissions");
       setAllTransactions([]);
       setFilteredAllTransactions([]);
     } finally {
@@ -310,14 +286,14 @@ const PayoutTransactionPage = () => {
     }
   }, [token, allCurrentPage, allRecordsPerPage, allStartDate, allEndDate, allStatusFilter, allSearchTerm]);
 
-  // Fetch transactions for selected user with query params
+  // Fetch TDS commissions for selected user with query params
   const fetchUserTransactions = useCallback(async (applyFilters = false) => {
     if (!selectedUserId || !token) {
-      console.log("⏸️ Skipping user transactions fetch - missing user ID or token");
+      console.log("⏸️ Skipping user TDS commissions fetch - missing user ID or token");
       return;
     }
 
-    console.log(`🔄 Fetching transactions for user: ${selectedUserId}`);
+    console.log(`🔄 Fetching TDS commissions for user: ${selectedUserId}`);
     setLoadingUserTransactions(true);
     
     try {
@@ -333,15 +309,15 @@ const PayoutTransactionPage = () => {
       console.log("📋 Query params:", queryString);
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}?${queryString}`,
+        `${import.meta.env.VITE_API_BASE_URL}/commision/get/tds/${selectedUserId}?${queryString}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log("📦 User transactions API response:", response.data);
+      console.log("📦 User TDS commissions API response:", response.data);
       
-      const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
+      const list: TDSCommission[] = response.data?.data?.tds_commisions || [];
       
-      console.log(`✅ Processing ${list.length} user transactions`);
+      console.log(`✅ Processing ${list.length} user TDS commissions`);
 
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -353,26 +329,25 @@ const PayoutTransactionPage = () => {
       // Apply client-side search filter if needed
       if (applyFilters && userSearchTerm.trim()) {
         const filtered = sorted.filter((t) =>
-          t.order_id.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-          t.mobile_number.includes(userSearchTerm) ||
-          t.beneficiary_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-          t.beneficiary_account_number.includes(userSearchTerm) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(userSearchTerm.toLowerCase()))
+          t.transaction_id.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+          t.user_id.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+          t.user_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+          t.pan_number.toLowerCase().includes(userSearchTerm.toLowerCase())
         );
         setFilteredUserTransactions(filtered);
       } else {
         setFilteredUserTransactions(sorted);
       }
       
-      toast.success(`Loaded ${sorted.length} transactions`);
+      toast.success(`Loaded ${sorted.length} TDS commissions`);
     } catch (error: any) {
-      console.error("❌ Error fetching user transactions:", error);
+      console.error("❌ Error fetching user TDS commissions:", error);
       console.error("Error details:", {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
       });
-      toast.error(error.response?.data?.message || "Failed to fetch transactions");
+      toast.error(error.response?.data?.message || "Failed to fetch TDS commissions");
       setUserTransactions([]);
       setFilteredUserTransactions([]);
     } finally {
@@ -399,11 +374,10 @@ const PayoutTransactionPage = () => {
 
     const s = allSearchTerm.toLowerCase();
     const filtered = allTransactions.filter((t) =>
-      t.order_id.toLowerCase().includes(s) ||
-      t.mobile_number.includes(s) ||
-      t.beneficiary_name.toLowerCase().includes(s) ||
-      t.beneficiary_account_number.includes(s) ||
-      (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+      t.transaction_id.toLowerCase().includes(s) ||
+      t.user_id.toLowerCase().includes(s) ||
+      t.user_name.toLowerCase().includes(s) ||
+      t.pan_number.toLowerCase().includes(s)
     );
     
     setFilteredAllTransactions(filtered);
@@ -418,11 +392,10 @@ const PayoutTransactionPage = () => {
 
     const s = userSearchTerm.toLowerCase();
     const filtered = userTransactions.filter((t) =>
-      t.order_id.toLowerCase().includes(s) ||
-      t.mobile_number.includes(s) ||
-      t.beneficiary_name.toLowerCase().includes(s) ||
-      t.beneficiary_account_number.includes(s) ||
-      (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+      t.transaction_id.toLowerCase().includes(s) ||
+      t.user_id.toLowerCase().includes(s) ||
+      t.user_name.toLowerCase().includes(s) ||
+      t.pan_number.toLowerCase().includes(s)
     );
     
     setFilteredUserTransactions(filtered);
@@ -459,10 +432,10 @@ const PayoutTransactionPage = () => {
     try {
       toast.info("Fetching all data for export...");
       
-      let allData: PayoutTransaction[] = [];
+      let allData: TDSCommission[] = [];
       
       if (isUserData && selectedUserId) {
-        // Fetch all user transactions without pagination
+        // Fetch all user TDS commissions without pagination
         const queryString = buildQueryParams({
           limit: 10000, // Large number to get all records
           offset: 0,
@@ -472,13 +445,13 @@ const PayoutTransactionPage = () => {
         });
 
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}?${queryString}`,
+          `${import.meta.env.VITE_API_BASE_URL}/commision/get/tds/${selectedUserId}?${queryString}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        allData = response.data?.data?.payout_transactions || [];
+        allData = response.data?.data?.tds_commisions || [];
       } else {
-        // Fetch all transactions without pagination
+        // Fetch all TDS commissions without pagination
         const queryString = buildQueryParams({
           limit: 10000, // Large number to get all records
           offset: 0,
@@ -488,11 +461,11 @@ const PayoutTransactionPage = () => {
         });
 
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/payout/get?${queryString}`,
+          `${import.meta.env.VITE_API_BASE_URL}/commision/get/tds?${queryString}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        allData = response.data?.data?.payout_transactions || [];
+        allData = response.data?.data?.tds_commisions || [];
       }
 
       // Apply search filter if present
@@ -500,64 +473,49 @@ const PayoutTransactionPage = () => {
       if (searchTerm.trim()) {
         const s = searchTerm.toLowerCase();
         allData = allData.filter((t) =>
-          t.order_id.toLowerCase().includes(s) ||
-          t.mobile_number.includes(s) ||
-          t.beneficiary_name.toLowerCase().includes(s) ||
-          t.beneficiary_account_number.includes(s) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+          t.transaction_id.toLowerCase().includes(s) ||
+          t.user_id.toLowerCase().includes(s) ||
+          t.user_name.toLowerCase().includes(s) ||
+          t.pan_number.toLowerCase().includes(s)
         );
       }
 
       if (allData.length === 0) {
-        toast.error("No transactions to export");
+        toast.error("No TDS commissions to export");
         return;
       }
 
       const data = allData.map((t, i) => ({
         "S.No": i + 1,
         "Date & Time": formatDate(t.created_at),
-        "Order ID": t.order_id,
-        "Transaction ID": t.payout_transaction_id,
-        "Mobile": t.mobile_number,
-        "Beneficiary Name": t.beneficiary_name,
-        "Bank": t.beneficiary_bank_name,
-        "Account Number": t.beneficiary_account_number,
-        "IFSC": t.beneficiary_ifsc_code,
-        "Amount (₹)": t.amount.toFixed(2),
-        "Transfer Type": getTransferTypeName(t.transfer_type),
-        "Status": t.payout_transaction_status,
-        "Operator TXN ID": t.operator_transaction_id || "N/A",
-        "Admin Commission": t.admin_commision || 0,
-        "MD Commission": t.master_distributor_commision || 0,
-        "Distributor Commission": t.distributor_commision || 0,
-        "Retailer Commission": t.retailer_commision || 0,
+        "TDS Commission ID": t.tds_commision_id,
+        "Transaction ID": t.transaction_id,
+        "User ID": t.user_id,
+        "User Name": t.user_name,
+        "PAN Number": t.pan_number,
+        "Commission (₹)": t.commision.toFixed(2),
+        "TDS (₹)": t.tds.toFixed(2),
+        "Paid Commission (₹)": t.paid_commision.toFixed(2),
+        "Status": t.status,
       }));
 
       // Calculate totals
-      const totalAmount = allData.reduce((sum, t) => sum + t.amount, 0);
-      const totalAdminComm = allData.reduce((sum, t) => sum + (t.admin_commision || 0), 0);
-      const totalMDComm = allData.reduce((sum, t) => sum + (t.master_distributor_commision || 0), 0);
-      const totalDistComm = allData.reduce((sum, t) => sum + (t.distributor_commision || 0), 0);
-      const totalRetailerComm = allData.reduce((sum, t) => sum + (t.retailer_commision || 0), 0);
+      const totalCommission = allData.reduce((sum, t) => sum + t.commision, 0);
+      const totalTDS = allData.reduce((sum, t) => sum + t.tds, 0);
+      const totalPaidCommission = allData.reduce((sum, t) => sum + t.paid_commision, 0);
 
       const summaryRow = {
         "S.No": "",
         "Date & Time": "",
-        "Order ID": "TOTAL",
-        "Transaction ID": "",
-        "Mobile": "",
-        "Beneficiary Name": "",
-        "Bank": "",
-        "Account Number": "",
-        "IFSC": "",
-        "Amount (₹)": totalAmount.toFixed(2),
-        "Transfer Type": "",
+        "TDS Commission ID": "",
+        "Transaction ID": "TOTAL",
+        "User ID": "",
+        "User Name": "",
+        "PAN Number": "",
+        "Commission (₹)": totalCommission.toFixed(2),
+        "TDS (₹)": totalTDS.toFixed(2),
+        "Paid Commission (₹)": totalPaidCommission.toFixed(2),
         "Status": "",
-        "Operator TXN ID": "",
-        "Admin Commission": totalAdminComm.toFixed(2),
-        "MD Commission": totalMDComm.toFixed(2),
-        "Distributor Commission": totalDistComm.toFixed(2),
-        "Retailer Commission": totalRetailerComm.toFixed(2),
       };
 
       const finalData = [...data, summaryRow];
@@ -565,85 +523,24 @@ const PayoutTransactionPage = () => {
 
       // Set column widths
       ws["!cols"] = [
-        { wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 25 },
-        { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 18 },
-        { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 },
-        { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }
+        { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 38 },
+        { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
+        { wch: 12 }, { wch: 18 }, { wch: 12 }
       ];
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+      XLSX.utils.book_append_sheet(wb, ws, "TDS Commissions");
 
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = isUserData 
-        ? `Retailer_${selectedUserId}_Transactions_${timestamp}.xlsx`
-        : `All_Payout_Transactions_${timestamp}.xlsx`;
+        ? `Retailer_${selectedUserId}_TDS_Commissions_${timestamp}.xlsx`
+        : `All_TDS_Commissions_${timestamp}.xlsx`;
       
       XLSX.writeFile(wb, filename);
-      toast.success(`Exported ${allData.length} transactions successfully`);
+      toast.success(`Exported ${allData.length} TDS commissions successfully`);
     } catch (error) {
       console.error("Export error:", error);
       toast.error("Failed to export data");
-    }
-  };
-
-  // Update transaction status
-  const handleUpdateStatus = async (newStatus: "SUCCESS" | "FAILED" | "PENDING") => {
-    if (!selectedTransaction || !token) {
-      toast.error("Missing required data");
-      return;
-    }
-
-    console.log("🔄 Updating transaction status...", {
-      transaction_id: selectedTransaction.payout_transaction_id,
-      new_status: newStatus,
-      operator_txn_id: operatorTxnId,
-    });
-
-    const requestPayload = {
-      payout_transaction_id: selectedTransaction.payout_transaction_id,
-      status: newStatus,
-      operator_transaction_id: operatorTxnId.trim() || undefined,
-    };
-
-    const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/admin/update/payout/request`;
-    
-    setUpdatingStatus(true);
-    
-    try {
-      const response = await axios.post(apiUrl, requestPayload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      console.log("✅ Update response:", response.data);
-
-      if (response.status === 200 && response.data?.status === "success") {
-        toast.success(`Transaction status updated to ${newStatus}`);
-        setOperatorTxnId("");
-        setDetailsOpen(false);
-        
-        // Refresh both lists
-        fetchAllTransactions(true);
-        if (selectedUserId) {
-          fetchUserTransactions(true);
-        }
-      } else {
-        toast.error(response.data?.message || "Failed to update transaction status");
-      }
-    } catch (error: any) {
-      console.error("❌ Update error:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-      const errorMessage = error.response?.data?.message || "Failed to update transaction status";
-      toast.error(errorMessage);
-    } finally {
-      setUpdatingStatus(false);
     }
   };
 
@@ -656,8 +553,8 @@ const PayoutTransactionPage = () => {
         return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
       case "FAILED":
         return <Badge className="bg-red-50 text-red-700 border-red-300">Failed</Badge>;
-      case "REFUND":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-300">Refunded</Badge>;
+      case "DEDUCTED":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-300">Deducted</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -685,15 +582,14 @@ const PayoutTransactionPage = () => {
     });
   };
 
-  const handleViewDetails = (transaction: PayoutTransaction) => {
+  const handleViewDetails = (transaction: TDSCommission) => {
     setSelectedTransaction(transaction);
-    setOperatorTxnId(transaction.operator_transaction_id || "");
     setDetailsOpen(true);
   };
 
   // Render transaction table
   const renderTransactionTable = (
-    transactions: PayoutTransaction[],
+    transactions: TDSCommission[],
     currentPage: number,
     totalRecords: number,
     recordsPerPage: number,
@@ -713,7 +609,7 @@ const PayoutTransactionPage = () => {
     if (transactions.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <p className="text-lg font-semibold text-gray-900">No transactions found</p>
+          <p className="text-lg font-semibold text-gray-900">No TDS commissions found</p>
           <p className="text-sm text-gray-600">Try adjusting your filters</p>
         </div>
       );
@@ -729,16 +625,22 @@ const PayoutTransactionPage = () => {
                   Date & Time
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Transaction ID
+                  User ID
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Mobile
+                  User Name
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Beneficiary
+                  PAN Number
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Amount (₹)
+                  Commission (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  TDS (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  Paid (₹)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Status
@@ -751,7 +653,7 @@ const PayoutTransactionPage = () => {
             <TableBody>
               {transactions.map((tx, idx) => (
                 <TableRow
-                  key={tx.payout_transaction_id}
+                  key={tx.tds_commision_id}
                   className={`border-b hover:bg-gray-50 ${
                     idx % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                   }`}
@@ -760,19 +662,25 @@ const PayoutTransactionPage = () => {
                     {formatDate(tx.created_at)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-mono text-xs text-gray-900 whitespace-nowrap">
-                    {tx.operator_transaction_id|| "-"}
+                    {tx.user_id}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
-                    {tx.mobile_number}
+                    {tx.user_name}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
-                    {tx.beneficiary_name}
+                  <TableCell className="py-3 px-4 text-center font-mono text-xs text-gray-900">
+                    {tx.pan_number}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-blue-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.commision)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-red-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.tds)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
-                    ₹{formatAmount(tx.amount)}
+                    ₹{formatAmount(tx.paid_commision)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
-                    {getStatusBadge(tx.payout_transaction_status)}
+                    {getStatusBadge(tx.status)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
                     <Button
@@ -857,9 +765,9 @@ const PayoutTransactionPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Payout Transactions</h1>
+          <h1 className="text-3xl font-bold text-gray-900">TDS Commissions</h1>
           <p className="text-gray-600 mt-1">
-            View and manage payout transaction history
+            View and manage TDS commission records
           </p>
         </div>
       </div>
@@ -868,7 +776,7 @@ const PayoutTransactionPage = () => {
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="all" onClick={() => fetchAllTransactions(true)}>
-            All Transactions
+            All Commissions
           </TabsTrigger>
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
         </TabsList>
@@ -946,7 +854,7 @@ const PayoutTransactionPage = () => {
                         <SelectItem value="SUCCESS">Success</SelectItem>
                         <SelectItem value="PENDING">Pending</SelectItem>
                         <SelectItem value="FAILED">Failed</SelectItem>
-                        <SelectItem value="REFUND">Refund</SelectItem>
+                        <SelectItem value="DEDUCTED">Deducted</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -957,7 +865,7 @@ const PayoutTransactionPage = () => {
                       Search
                     </Label>
                     <Input
-                      placeholder="Search by order ID, phone, name..."
+                      placeholder="Search by user ID, name, PAN..."
                       value={allSearchTerm}
                       onChange={(e) => setAllSearchTerm(e.target.value)}
                       className="bg-white"
@@ -996,7 +904,7 @@ const PayoutTransactionPage = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-700">
-                    {filteredAllTransactions.length} transactions
+                    {filteredAllTransactions.length} commissions
                   </span>
                   <Button
                     onClick={() => exportToExcel(false)}
@@ -1166,7 +1074,7 @@ const PayoutTransactionPage = () => {
                             <SelectItem value="SUCCESS">Success</SelectItem>
                             <SelectItem value="PENDING">Pending</SelectItem>
                             <SelectItem value="FAILED">Failed</SelectItem>
-                            <SelectItem value="REFUND">Refund</SelectItem>
+                            <SelectItem value="DEDUCTED">Deducted</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1177,7 +1085,7 @@ const PayoutTransactionPage = () => {
                           Search
                         </Label>
                         <Input
-                          placeholder="Search by order ID, phone, name..."
+                          placeholder="Search by user ID, name, PAN..."
                           value={userSearchTerm}
                           onChange={(e) => setUserSearchTerm(e.target.value)}
                           className="bg-white"
@@ -1216,7 +1124,7 @@ const PayoutTransactionPage = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-700">
-                        {filteredUserTransactions.length} transactions
+                        {filteredUserTransactions.length} commissions
                       </span>
                       <Button
                         onClick={() => exportToExcel(true)}
@@ -1258,199 +1166,101 @@ const PayoutTransactionPage = () => {
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Transaction Details</DialogTitle>
+            <DialogTitle>TDS Commission Details</DialogTitle>
           </DialogHeader>
           {selectedTransaction && (
-            <div className="space-y-6">
-              {/* Status Update Section */}
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Update Transaction Status</h3>
-                    <div className="text-sm">
-                      Current: {getStatusBadge(selectedTransaction.payout_transaction_status)}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="operator-txn-id">
-                      Operator Transaction ID
-                      <span className="text-gray-600 ml-1">(Optional)</span>
-                    </Label>
-                    <Input
-                      id="operator-txn-id"
-                      type="text"
-                      value={operatorTxnId}
-                      onChange={(e) => setOperatorTxnId(e.target.value)}
-                      placeholder="Enter operator transaction ID"
-                      className="w-full mt-1"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <Button
-                      onClick={() => handleUpdateStatus("PENDING")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "PENDING"}
-                      className="bg-yellow-600 hover:bg-yellow-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                      )}
-                      PENDING
-                    </Button>
-                    <Button
-                      onClick={() => handleUpdateStatus("SUCCESS")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "SUCCESS"}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                      )}
-                      SUCCESS
-                    </Button>
-                    <Button
-                      onClick={() => handleUpdateStatus("FAILED")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "FAILED"}
-                      variant="destructive"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <XCircle className="w-4 h-4 mr-2" />
-                      )}
-                      FAILED
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Transaction Information */}
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label className="text-gray-600 text-xs">Payout Transaction ID</Label>
+                  <Label className="text-gray-600 text-xs">TDS Commission ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.payout_transaction_id}
+                    {selectedTransaction.tds_commision_id}
+                  </p>
+                </div>
+
+                <div className="col-span-2">
+                  <Label className="text-gray-600 text-xs">Transaction ID</Label>
+                  <p className="font-mono text-sm font-medium mt-1">
+                    {selectedTransaction.transaction_id}
                   </p>
                 </div>
 
                 <div>
-                  <Label className="text-gray-600 text-xs">Order ID</Label>
+                  <Label className="text-gray-600 text-xs">User ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.order_id}
+                    {selectedTransaction.user_id}
                   </p>
                 </div>
 
                 <div>
-                  <Label className="text-gray-600 text-xs">Partner Request ID</Label>
+                  <Label className="text-gray-600 text-xs">User Name</Label>
+                  <p className="font-medium mt-1">{selectedTransaction.user_name}</p>
+                </div>
+
+                <div>
+                  <Label className="text-gray-600 text-xs">PAN Number</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.partner_request_id}
-                  </p>
-                </div>
-
-                {selectedTransaction.operator_transaction_id && (
-                  <div className="col-span-2">
-                    <Label className="text-gray-600 text-xs">Operator Transaction ID</Label>
-                    <p className="font-mono text-sm font-medium mt-1">
-                      {selectedTransaction.operator_transaction_id}
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Mobile Number</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.mobile_number}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Beneficiary Name</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.beneficiary_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Bank Name</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.beneficiary_bank_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Account Number</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.beneficiary_account_number}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">IFSC Code</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.beneficiary_ifsc_code}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Transfer Type</Label>
-                  <p className="font-medium mt-1">{getTransferTypeName(selectedTransaction.transfer_type)}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Amount</Label>
-                  <p className="font-semibold text-lg mt-1 text-green-600">
-                    ₹{formatAmount(selectedTransaction.amount)}
+                    {selectedTransaction.pan_number}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-gray-600 text-xs">Status</Label>
                   <div className="mt-1">
-                    {getStatusBadge(selectedTransaction.payout_transaction_status)}
+                    {getStatusBadge(selectedTransaction.status)}
                   </div>
                 </div>
 
-                {/* Commission Fields */}
-                {selectedTransaction.admin_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Admin Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.admin_commision}</p>
-                  </div>
-                )}
-
-                {selectedTransaction.master_distributor_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Master Distributor Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.master_distributor_commision}</p>
-                  </div>
-                )}
-
-                {selectedTransaction.distributor_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Distributor Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.distributor_commision}</p>
-                  </div>
-                )}
-
-                {selectedTransaction.retailer_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Retailer Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.retailer_commision}</p>
-                  </div>
-                )}
+                <div>
+                  <Label className="text-gray-600 text-xs">Commission Amount</Label>
+                  <p className="font-semibold text-lg mt-1 text-blue-600">
+                    ₹{formatAmount(selectedTransaction.commision)}
+                  </p>
+                </div>
 
                 <div>
+                  <Label className="text-gray-600 text-xs">TDS Deducted</Label>
+                  <p className="font-semibold text-lg mt-1 text-red-600">
+                    ₹{formatAmount(selectedTransaction.tds)}
+                  </p>
+                </div>
+
+                <div className="col-span-2">
+                  <Label className="text-gray-600 text-xs">Paid Commission (After TDS)</Label>
+                  <p className="font-semibold text-xl mt-1 text-green-600">
+                    ₹{formatAmount(selectedTransaction.paid_commision)}
+                  </p>
+                </div>
+
+                <div className="col-span-2">
                   <Label className="text-gray-600 text-xs">Created At</Label>
                   <p className="font-medium mt-1">
                     {formatDate(selectedTransaction.created_at)}
                   </p>
                 </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Updated At</Label>
-                  <p className="font-medium mt-1">
-                    {formatDate(selectedTransaction.updated_at)}
-                  </p>
-                </div>
               </div>
+
+              {/* TDS Calculation Breakdown */}
+              <Card className="bg-gray-50 border-gray-200">
+                <CardContent className="pt-6">
+                  <h3 className="font-semibold text-sm mb-3 text-gray-700">TDS Calculation Breakdown</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Original Commission:</span>
+                      <span className="font-medium text-blue-600">₹{formatAmount(selectedTransaction.commision)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">TDS Deducted (2%):</span>
+                      <span className="font-medium text-red-600">- ₹{formatAmount(selectedTransaction.tds)}</span>
+                    </div>
+                    <div className="h-px bg-gray-300 my-2"></div>
+                    <div className="flex justify-between text-base">
+                      <span className="font-semibold text-gray-700">Net Paid Commission:</span>
+                      <span className="font-bold text-green-600">₹{formatAmount(selectedTransaction.paid_commision)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </DialogContent>
@@ -1459,4 +1269,4 @@ const PayoutTransactionPage = () => {
   );
 };
 
-export default PayoutTransactionPage;
+export default TDSCommissionPage;

@@ -35,6 +35,7 @@ import CommissionSplit from "./components/admin/CommissonSpilt";
 import Tickets from "./components/admin/Tickets";
 import { UserHierarchySwap } from "./components/admin/Swap";
 import ApiManagement from "./components/admin/ApiDown";
+import TDSCommissionPage from "./components/admin/Tds";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,7 @@ const App = () => {
               <Route index element={<Dashboard />} />
               <Route path="logs" element={<AdminTransactionTable />} />
               <Route path="logs/payout" element={<PayoutTransactionPage />} />
+              <Route path="logs/tds" element={<TDSCommissionPage />} />
               <Route path="funds/request" element={<FundRequest />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="create/md" element={<CreateMasterDistributorPage />} />
