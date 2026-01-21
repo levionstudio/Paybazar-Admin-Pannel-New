@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import React from "react";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,6 @@ interface MasterDistributor {
   admin_id: string;
 }
 
-
 interface Distributor {
   distributor_id: string;
   distributor_name: string;
@@ -65,7 +65,6 @@ interface Distributor {
   distributor_phone: string;
   master_distributor_id: string;
 }
-
 
 interface Retailer {
   retailer_id: string;
@@ -144,26 +143,26 @@ export function UserHierarchySwap() {
 
     try {
       // Fetch all Master Distributors
-   const mdResponse = await axios.get(
-  `${API_BASE_URL}/md/get/admin/${adminId}`,
-  getAuthHeaders()
-);
+      const mdResponse = await axios.get(
+        `${API_BASE_URL}/md/get/admin/${adminId}`,
+        getAuthHeaders()
+      );
       const masterDistributors = mdResponse.data.data.master_distributors || [];
       setAllMDs(masterDistributors);
 
       // Fetch all Distributors
-     const distResponse = await axios.get(
-  `${API_BASE_URL}/distributor/get/admin/${adminId}`,
-  getAuthHeaders()
-);
+      const distResponse = await axios.get(
+        `${API_BASE_URL}/distributor/get/admin/${adminId}`,
+        getAuthHeaders()
+      );
       const distributors = distResponse.data.data.distributors || [];
       setAllDistributors(distributors);
 
       // Fetch all Retailers
-    const retailerResponse = await axios.get(
-  `${API_BASE_URL}/retailer/get/admin/${adminId}`,
-  getAuthHeaders()
-);
+      const retailerResponse = await axios.get(
+        `${API_BASE_URL}/retailer/get/admin/${adminId}`,
+        getAuthHeaders()
+      );
       const retailers = retailerResponse.data.data.retailers || [];
 
       // Build hierarchy
@@ -190,6 +189,10 @@ export function UserHierarchySwap() {
 
       setHierarchy(hierarchyData);
     } catch (error: any) {
+      console.error("=== Fetch Hierarchy Error ===");
+      console.error("Error:", error.response?.data);
+      console.error("============================");
+      
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to fetch hierarchy data",
@@ -250,35 +253,105 @@ export function UserHierarchySwap() {
       if (editType === "distributor") {
         const distributor = selectedItem as Distributor;
         
+        // Check if MD actually changed
+        if (distributor.master_distributor_id === newMDId) {
+          toast({
+            title: "No Changes",
+            description: "Please select a different Master Distributor",
+            variant: "destructive",
+          });
+          setProcessing(false);
+          return;
+        }
+
+        // Verify distributor exists in our local data
+        const distributorExists = allDistributors.find(
+          d => d.distributor_id === distributor.distributor_id
+        );
+
+        if (!distributorExists) {
+          console.error("Distributor not found in local data:", distributor.distributor_id);
+          toast({
+            title: "Error",
+            description: "Distributor not found. Please refresh and try again.",
+            variant: "destructive",
+          });
+          setProcessing(false);
+          return;
+        }
+
+        const payload = {
+          distributor_id: distributor.distributor_id,
+          master_distributor_id: newMDId,
+        };
+
+        console.log("=== Update Distributor MD Payload ===");
+        console.log("Distributor ID:", distributor.distributor_id);
+        console.log("Distributor Name:", distributor.distributor_name);
+        console.log("Current MD ID:", distributor.master_distributor_id);
+        console.log("New MD ID:", newMDId);
+        console.log("Distributor exists in local data:", distributorExists);
+        console.log("All distributors count:", allDistributors.length);
+        console.log("Payload:", payload);
+        console.log("Endpoint:", `${API_BASE_URL}/distributor/update/md`);
+        console.log("====================================");
+
         // Update distributor's master_distributor_id
-        await axios.put(
-          `${API_BASE_URL}/distributor/update/${distributor.distributor_id}`,
-          {
-            master_distributor_id: newMDId,
-          },
+        const response = await axios.put(
+          `${API_BASE_URL}/distributor/update/md`,
+          payload,
           getAuthHeaders()
         );
 
+        console.log("=== Update Distributor MD Response ===");
+        console.log("Response:", response.data);
+        console.log("======================================");
+
         toast({
           title: "Success",
-          description: `Distributor ${distributor.distributor_id} reassigned successfully`,
+          description: `Distributor ${distributor.distributor_name} reassigned successfully`,
         });
       } else if (editType === "retailer") {
         const retailer = selectedItem as Retailer;
 
-        // Update retailer's distributor_id and master_distributor_id
-        await axios.put(
-          `${API_BASE_URL}/retailer/update/${retailer.retailer_id}`,
-          {
-            distributor_id: newDistId,
-            master_distributor_id: newMDId,
-          },
+        // Check if anything actually changed
+        if (retailer.distributor_id === newDistId && retailer.master_distributor_id === newMDId) {
+          toast({
+            title: "No Changes",
+            description: "Please select different assignments",
+            variant: "destructive",
+          });
+          setProcessing(false);
+          return;
+        }
+
+        const payload = {
+          retailer_id: retailer.retailer_id,
+          distributor_id: newDistId,
+        };
+
+        console.log("=== Update Retailer Distributor Payload ===");
+        console.log("Retailer ID:", retailer.retailer_id);
+        console.log("New Distributor ID:", newDistId);
+        console.log("New MD ID (for reference):", newMDId);
+        console.log("Payload:", payload);
+        console.log("Endpoint:", `${API_BASE_URL}/retailer/update/distributor`);
+        console.log("==========================================");
+
+        // Update retailer's distributor_id (which will automatically update master_distributor_id based on the new distributor)
+        const response = await axios.put(
+          `${API_BASE_URL}/retailer/update/distributor`,
+          payload,
           getAuthHeaders()
         );
 
+        console.log("=== Update Retailer Distributor Response ===");
+        console.log("Response:", response.data);
+        console.log("============================================");
+
         toast({
           title: "Success",
-          description: `Retailer ${retailer.retailer_id} reassigned successfully`,
+          description: `Retailer ${retailer.retailer_name} reassigned successfully`,
         });
       }
 
@@ -286,11 +359,19 @@ export function UserHierarchySwap() {
       setSelectedItem(null);
       setNewMDId("");
       setNewDistId("");
-      fetchAllData(); // Refresh data
+      await fetchAllData(); // Refresh data
     } catch (error: any) {
+      console.error("=== Swap Error ===");
+      console.error("Status:", error.response?.status);
+      console.error("Status Text:", error.response?.statusText);
+      console.error("Error Data:", error.response?.data);
+      console.error("Error Message:", error.response?.data?.message);
+      console.error("Full Error:", error);
+      console.error("==================");
+      
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to update assignment",
+        description: error.response?.data?.message || error.response?.data?.error || "Failed to update assignment",
         variant: "destructive",
       });
     } finally {
@@ -464,10 +545,9 @@ export function UserHierarchySwap() {
                 </TableHeader>
                 <TableBody>
                   {filteredHierarchy.map((node) => (
-                    <>
+                    <React.Fragment key={`md-${node.md.master_distributor_id}`}>
                       {/* Master Distributor Row */}
                       <TableRow
-                        key={node.md.master_distributor_id}
                         className="border-b bg-primary/5 hover:bg-primary/10"
                       >
                         <TableCell>
@@ -512,9 +592,8 @@ export function UserHierarchySwap() {
                       {/* Distributors under this MD */}
                       {expandedMDs.has(node.md.master_distributor_id) &&
                         node.distributors.map((dist) => (
-                          <>
+                          <React.Fragment key={`dist-${dist.distributor_id}`}>
                             <TableRow
-                              key={dist.distributor_id}
                               className="border-b bg-accent/5 hover:bg-accent/10"
                             >
                               <TableCell className="pl-12">
@@ -605,9 +684,9 @@ export function UserHierarchySwap() {
                                   </TableCell>
                                 </TableRow>
                               ))}
-                          </>
+                          </React.Fragment>
                         ))}
-                    </>
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>
@@ -632,40 +711,53 @@ export function UserHierarchySwap() {
           <div className="space-y-4 py-4">
             {selectedItem && (
               <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-sm font-medium text-foreground">Current Assignment:</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <span className="font-mono font-semibold">
-                    {editType === "distributor"
-                      ? (selectedItem as Distributor).distributor_id
-                      : (selectedItem as Retailer).retailer_id}
-                  </span>{" "}
-                  - {selectedItem.master_distributor_id}
-                </p>
+                <p className="text-sm font-medium text-foreground mb-2">Current Assignment:</p>
+                {editType === "distributor" ? (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Distributor ID:</span>{" "}
+                      <span className="font-mono">{(selectedItem as Distributor).distributor_id}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Name:</span> {(selectedItem as Distributor).distributor_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Email:</span> {(selectedItem as Distributor).distributor_email}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Phone:</span> {(selectedItem as Distributor).distributor_phone}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Current MD:</span>{" "}
+                      <span className="font-mono">{selectedItem.master_distributor_id}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Retailer ID:</span>{" "}
+                      <span className="font-mono">{(selectedItem as Retailer).retailer_id}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Name:</span> {(selectedItem as Retailer).retailer_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Current Distributor:</span>{" "}
+                      <span className="font-mono">{(selectedItem as Retailer).distributor_id}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Current MD:</span>{" "}
+                      <span className="font-mono">{selectedItem.master_distributor_id}</span>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Select new Master Distributor */}
-            {editType === "retailer" && (
-              <div className="space-y-2">
-                <Label>New Master Distributor</Label>
-                <Select value={newMDId} onValueChange={setNewMDId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Master Distributor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allMDs.map((md) => (
-                      <SelectItem key={md.master_distributor_id} value={md.master_distributor_id}>
-                        {md.master_distributor_id} - {md.master_distributor_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
+            {/* Select new Master Distributor (for distributor reassignment) */}
             {editType === "distributor" && (
               <div className="space-y-2">
-                <Label>New Master Distributor</Label>
+                <Label>New Master Distributor *</Label>
                 <Select value={newMDId} onValueChange={setNewMDId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Master Distributor" />
@@ -681,25 +773,57 @@ export function UserHierarchySwap() {
               </div>
             )}
 
-            {/* Select new Distributor (only for retailers) */}
-            {editType === "retailer" && newMDId && (
-              <div className="space-y-2">
-                <Label>New Distributor</Label>
-                <Select value={newDistId} onValueChange={setNewDistId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Distributor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allDistributors
-                      .filter((d) => d.master_distributor_id === newMDId)
-                      .map((dist) => (
-                        <SelectItem key={dist.distributor_id} value={dist.distributor_id}>
-                          {dist.distributor_id} - {dist.distributor_name}
+            {/* Select new Master Distributor first (for retailer reassignment) */}
+            {editType === "retailer" && (
+              <>
+                <div className="space-y-2">
+                  <Label>New Master Distributor *</Label>
+                  <Select 
+                    value={newMDId} 
+                    onValueChange={(value) => {
+                      setNewMDId(value);
+                      setNewDistId(""); // Reset distributor when MD changes
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Master Distributor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allMDs.map((md) => (
+                        <SelectItem key={md.master_distributor_id} value={md.master_distributor_id}>
+                          {md.master_distributor_id} - {md.master_distributor_name}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Select new Distributor (only show after MD is selected) */}
+                {newMDId && (
+                  <div className="space-y-2">
+                    <Label>New Distributor *</Label>
+                    <Select value={newDistId} onValueChange={setNewDistId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Distributor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allDistributors
+                          .filter((d) => d.master_distributor_id === newMDId)
+                          .map((dist) => (
+                            <SelectItem key={dist.distributor_id} value={dist.distributor_id}>
+                              {dist.distributor_id} - {dist.distributor_name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {allDistributors.filter((d) => d.master_distributor_id === newMDId).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No distributors found under this Master Distributor
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
