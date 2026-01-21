@@ -76,6 +76,8 @@ interface EditFormData {
   business_name: string;
   business_type: string;
   gst_number: string;
+  is_blocked: boolean;
+  kyc_status: boolean;
 }
 
 /* -------------------- AUTH HELPER -------------------- */
@@ -106,18 +108,21 @@ export default function GetAllRetailers() {
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
-  const [editFormData, setEditFormData] = useState<EditFormData>({
-    retailer_id: "",
-    retailer_name: "",
-    retailer_phone: "",
-    city: "",
-    state: "",
-    address: "",
-    pincode: "",
-    business_name: "",
-    business_type: "",
-    gst_number: "",
-  });
+const [editFormData, setEditFormData] = useState<EditFormData>({
+  retailer_id: "",
+  retailer_name: "",
+  retailer_phone: "",
+  city: "",
+  state: "",
+  address: "",
+  pincode: "",
+  business_name: "",
+  business_type: "",
+  gst_number: "",
+  is_blocked: false,
+  kyc_status: false,
+});
+
   const itemsPerPage = 10;
 
   // Fetch all Distributors on mount
@@ -259,6 +264,8 @@ export default function GetAllRetailers() {
         business_name: retData.business_name ?? "",
         business_type: retData.business_type ?? "",
         gst_number: retData.gst_number ?? "",
+        is_blocked: Boolean(retData.is_blocked),
+        kyc_status: Boolean(retData.kyc_status),
       });
 
       toast.success("Profile loaded successfully");
@@ -343,6 +350,77 @@ export default function GetAllRetailers() {
       setIsUpdating(false);
     }
   };
+const handleUpdateRetailerBlockStatus = async (blockStatus: boolean) => {
+  if (!selectedRetailer?.retailer_id) {
+    toast.error("Invalid retailer selected");
+    return;
+  }
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  try {
+    await axios.put(
+      `${import.meta.env.VITE_API_BASE_URL}/retailer/update/block`,
+      {
+        retailer_id: selectedRetailer.retailer_id,
+        block_status: blockStatus,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    toast.success("Retailer block status updated");
+
+    // Update UI instantly
+    setEditFormData((prev) => ({
+      ...prev,
+      is_blocked: blockStatus,
+    }));
+
+    fetchRetailers(selectedDistributor);
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || "Failed to update block status");
+  }
+};
+const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
+  if (!selectedRetailer?.retailer_id) {
+    toast.error("Invalid retailer selected");
+    return;
+  }
+
+  const token = getAuthToken();
+  if (!token) return;
+
+  try {
+    await axios.put(
+      `${import.meta.env.VITE_API_BASE_URL}/retailer/update/kyc`,
+      {
+        retailer_id: selectedRetailer.retailer_id,
+        kyc_status: kycStatus,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    toast.success("Retailer KYC status updated");
+
+    setEditFormData((prev) => ({
+      ...prev,
+      kyc_status: kycStatus,
+    }));
+
+    fetchRetailers(selectedDistributor);
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || "Failed to update KYC status");
+  }
+};
 
   // Export to Excel
   const exportToExcel = () => {
@@ -915,6 +993,72 @@ export default function GetAllRetailers() {
                           className="font-mono"
                         />
                       </div>
+                    </div>
+                  </div>
+                </div>
+                  {/* Account Status Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <h3 className="font-semibold text-lg">Account Status</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-block-status">Block Status</Label>
+                <Select
+  value={editFormData.is_blocked ? "blocked" : "active"}
+  onValueChange={(value) =>
+    handleUpdateRetailerBlockStatus(value === "blocked")
+  }
+>
+
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Active</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="blocked">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-red-600" />
+                              <span>Blocked</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-kyc-status">KYC Status</Label>
+                   <Select
+  value={editFormData.kyc_status ? "verified" : "pending"}
+  onValueChange={(value) =>
+    handleUpdateRetailerKYCStatus(value === "verified")
+  }
+>
+
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="verified">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Verified</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="pending">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-yellow-600" />
+                              <span>Pending</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
