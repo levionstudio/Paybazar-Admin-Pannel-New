@@ -353,6 +353,69 @@ export default function GetAllDistributor() {
     }
   };
 
+  const handleUpdateBlockStatus = async (blockStatus: boolean) => {
+    if (!selectedDistributor?.distributor_id) {
+      toast.error("Invalid distributor selected")
+      return
+    }
+  
+    const token = localStorage.getItem("authToken")
+  
+    const payload = {
+      distributor_id: selectedDistributor.distributor_id,
+      block_status: blockStatus,
+    }
+  
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/distributor/update/block`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+  
+      toast.success("Block status updated successfully")
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.response?.data?.message || "Failed to update block status")
+    }
+  }
+  
+  const handleUpdateKYCStatus = async (kycStatus: boolean) => {
+    if (!selectedDistributor?.distributor_id) {
+      toast.error("Invalid distributor selected")
+      return
+    }
+  
+  
+    const token = localStorage.getItem("authToken")
+  
+    const payload = {
+      distributor_id: selectedDistributor.distributor_id,
+      kyc_status: kycStatus,
+    }
+  
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/distributor/update/kyc`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+  
+      toast.success("KYC status updated successfully")
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.response?.data?.message || "Failed to update KYC status")
+    }
+  }
+
   const getStatusBadge = (isBlocked: boolean) => {
     if (isBlocked) {
       return <Badge className="bg-red-50 text-red-700 border-red-300">Blocked</Badge>;
@@ -822,11 +885,13 @@ export default function GetAllDistributor() {
                     <Label htmlFor="edit-status">Status</Label>
                     <Select
                       value={editFormData.is_blocked ? "blocked" : "active"}
-                      onValueChange={(value) =>
+                      onValueChange={(value) =>{
                         setEditFormData({
                           ...editFormData,
                           is_blocked: value === "blocked",
                         })
+                        handleUpdateBlockStatus(value === "blocked")
+                      }
                       }
                     >
                       <SelectTrigger className="h-11">
@@ -859,11 +924,13 @@ export default function GetAllDistributor() {
                     <Label htmlFor="edit-status">Status</Label>
                     <Select
                       value={editFormData.kyc_status ? "blocked" : "active"}
-                      onValueChange={(value) =>
+                      onValueChange={(value) =>{
                         setEditFormData({
                           ...editFormData,
                           kyc_status: value === "blocked",
                         })
+                        handleUpdateKYCStatus(value === "blocked")
+                      }
                       }
                     >
                       <SelectTrigger className="h-11">

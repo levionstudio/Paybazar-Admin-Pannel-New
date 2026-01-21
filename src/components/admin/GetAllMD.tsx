@@ -293,6 +293,73 @@ allowedKeys.forEach((key) => {
   }
 };
 
+const handleUpdateBlockStatus = async (blockStatus: boolean) => {
+  if (!selectedMD?.master_distributor_id) {
+    toast.error("Invalid distributor selected")
+    return
+  }
+
+  const token = localStorage.getItem("authToken")
+
+  const payload = {
+    master_distributor_id: selectedMD.master_distributor_id,
+    block_status: blockStatus,
+  }
+
+  try {
+    await axios.put(
+      `${import.meta.env.VITE_API_BASE_URL}/md/update/block`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+
+    toast.success("Block status updated successfully")
+    fetchMasterDistributors()
+  } catch (error: any) {
+    console.error(error)
+    toast.error(error.response?.data?.message || "Failed to update block status")
+  }
+}
+
+const handleUpdateKYCStatus = async (kycStatus: boolean) => {
+  if (!selectedMD?.master_distributor_id) {
+    toast.error("Invalid distributor selected")
+    return
+  }
+
+
+  const token = localStorage.getItem("authToken")
+
+  const payload = {
+    master_distributor_id: selectedMD.master_distributor_id,
+    kyc_status: kycStatus,
+  }
+
+  try {
+    await axios.put(
+      `${import.meta.env.VITE_API_BASE_URL}/md/update/kyc`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+
+    toast.success("KYC status updated successfully")
+    fetchMasterDistributors()
+  } catch (error: any) {
+    console.error(error)
+    toast.error(error.response?.data?.message || "Failed to update KYC status")
+  }
+}
+
+
+
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -774,15 +841,52 @@ allowedKeys.forEach((key) => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
+                    <Label htmlFor="edit-status">Blocked Status</Label>
                     <Select
                       value={editFormData.is_blocked ? "blocked" : "active"}
-                      onValueChange={(value) =>
+                      onValueChange={(value) =>{
                         setEditFormData({
                           ...editFormData,
                           is_blocked: value === "blocked",
                         })
+                        handleUpdateBlockStatus(value === "blocked")
                       }
+                      }
+                      
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span>Active</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="blocked">
+                          <div className="flex items-center gap-2">
+                            <Ban className="h-4 w-4 text-red-600" />
+                            <span>Block</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-status">KYC Status</Label>
+                    <Select
+                      value={editFormData.kyc_status ? "blocked" : "active"}
+                      onValueChange={(value) =>{
+                        setEditFormData({
+                          ...editFormData,
+                          kyc_status: value === "blocked",
+                        })
+                        handleUpdateKYCStatus(value === "blocked")
+                      }}
+                      
                     >
                       <SelectTrigger className="h-11">
                         <SelectValue />
