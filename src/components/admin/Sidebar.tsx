@@ -58,9 +58,9 @@ const bank = [
   { name: "Admin Bank Account", href: "/admin/bank/account", icon: Building2 },
 ];
 
-const commission = [
-  { name: "Commission Split", href: "/admin/commission/split", icon: Percent },
-];
+// const commission = [
+//   { name: "Commission Split", href: "/admin/commission/split", icon: Percent },
+// ];
 
 const ApiDown = [
   { name: "API Management", href: "/admin/api/down", icon: Shield },
@@ -529,7 +529,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               )}
 
               {/* Commission Dropdown */}
-              <button
+              {/* <button
                 onClick={() => setCommissionExpanded(!commissionExpanded)}
                 className={cn(
                   "group flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200",
@@ -554,10 +554,10 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 ) : (
                   <ChevronRight className="h-4 w-4" />
                 )}
-              </button>
+              </button> */}
 
               {/* Commission Submenu */}
-              {commissionExpanded && (
+              {/* {commissionExpanded && (
                 <div className="ml-6 space-y-1">
                   {commission.map((item) => {
                     const Icon = item.icon;
@@ -586,7 +586,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                     );
                   })}
                 </div>
-              )}
+              )} */}
 
               {/* Users Management Dropdown */}
               <button

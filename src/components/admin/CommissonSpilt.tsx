@@ -199,10 +199,13 @@ export default function CommissionSplit() {
     setLoadingCommission(true);
     
     try {
-      // Updated endpoint to match the route: /get/commision/:user_id/:service
-      const res = await axios.get(`${API_BASE_URL}/commision/get/commision/${userId}/${SERVICE_TYPE}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Try to get commission for the specific user
+      const res = await axios.get(
+        `${API_BASE_URL}/commision/get/commision/${userId}/${SERVICE_TYPE}`, 
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const c = res.data.data;
       setExistingCommission(c);
@@ -213,21 +216,24 @@ export default function CommissionSplit() {
       setDistributorCommission(c.distributor_commision.toFixed(2));
       setRetailerCommission(c.retailer_commision.toFixed(2));
       
-      // Determine if this is inherited data or direct assignment
+      // Check if this is the user's own commission or inherited
       const isDirectAssignment = c.user_id === userId;
       setIsInheritedData(!isDirectAssignment);
       
     } catch (error: any) {
-      // No commission found - this is expected for new configurations
+      // If 404, commission doesn't exist - show form to configure
       if (error.response?.status === 404) {
         setExistingCommission(null);
         setHasCommissionConfigured(false);
         setIsInheritedData(false);
         
-        // Reset commission fields
-        setMdCommission("");
-        setDistributorCommission("");
-        setRetailerCommission("");
+        // Don't reset fields - they might have inherited values from parent
+        // Only reset if it's truly a new configuration
+        if (!mdCommission && !distributorCommission && !retailerCommission) {
+          setMdCommission("");
+          setDistributorCommission("");
+          setRetailerCommission("");
+        }
       } else {
         toast.error("Failed to load commission data");
       }
@@ -369,16 +375,6 @@ export default function CommissionSplit() {
     if (selectedDistributor) userId = selectedDistributor;
     if (selectedRetailer) userId = selectedRetailer;
 
-    const payload = {
-      user_id: userId,
-      service: SERVICE_TYPE,
-      total_commision: TOTAL_COMMISSION,
-      admin_commision: adminCommission,
-      master_distributor_commision: Number(mdCommission),
-      distributor_commision: Number(distributorCommission),
-      retailer_commision: Number(retailerCommission),
-    };
-
     try {
       if (existingCommission && !isInheritedData) {
         // Update existing commission
@@ -396,10 +392,20 @@ export default function CommissionSplit() {
         );
         toast.success("Commission updated successfully");
       } else {
-        // Create new commission
-        await axios.post(`${API_BASE_URL}/commision/create`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // Create new commission for this user
+        await axios.post(
+          `${API_BASE_URL}/commision/create`,
+          {
+            user_id: userId,
+            service: SERVICE_TYPE,
+            total_commision: TOTAL_COMMISSION,
+            admin_commision: adminCommission,
+            master_distributor_commision: Number(mdCommission),
+            distributor_commision: Number(distributorCommission),
+            retailer_commision: Number(retailerCommission),
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
         toast.success("Commission created successfully");
       }
 
@@ -431,7 +437,6 @@ export default function CommissionSplit() {
       setHasCommissionConfigured(false);
     }
   };
-
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
