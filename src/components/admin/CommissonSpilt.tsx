@@ -57,10 +57,9 @@ interface Retailer {
   distributor_id: string;
 }
 
+
 interface CommissionData {
-  commision_id: number;
   user_id: string;
-  service: string;
   total_commision: number;
   admin_commision: number;
   master_distributor_commision: number;
@@ -68,8 +67,8 @@ interface CommissionData {
   retailer_commision: number;
 }
 
+
 const TOTAL_COMMISSION = 1.0;
-const SERVICE_TYPE = "PAYOUT";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /* ===================== AUTH ===================== */
@@ -119,7 +118,6 @@ export default function CommissionSplit() {
   const [loadingCommission, setLoadingCommission] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [hasCommissionConfigured, setHasCommissionConfigured] = useState(false);
 
   const [retailerSearch, setRetailerSearch] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -127,7 +125,6 @@ export default function CommissionSplit() {
   // Locking states
   const [isMDLocked, setIsMDLocked] = useState(false);
   const [isDistributorLocked, setIsDistributorLocked] = useState(false);
-  const [isInheritedData, setIsInheritedData] = useState(false);
 
   /* ===================== INIT ===================== */
 
@@ -194,53 +191,28 @@ export default function CommissionSplit() {
 
   /* ===================== FETCH EXISTING COMMISSION ===================== */
 
-  const fetchCommission = async (userId: string) => {
-    const token = getAuthToken();
-    setLoadingCommission(true);
-    
-    try {
-      // Try to get commission for the specific user
-      const res = await axios.get(
-        `${API_BASE_URL}/commision/get/commision/${userId}/${SERVICE_TYPE}`, 
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+ const fetchCommission = async (userId: string) => {
+  const token = getAuthToken();
+  setLoadingCommission(true);
 
-      const c = res.data.data;
-      setExistingCommission(c);
-      setHasCommissionConfigured(true);
+  try {
+    const res = await axios.get(
+      `${API_BASE_URL}/commision/get/${userId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      // Populate fields with existing data
-      setMdCommission(c.master_distributor_commision.toFixed(2));
-      setDistributorCommission(c.distributor_commision.toFixed(2));
-      setRetailerCommission(c.retailer_commision.toFixed(2));
-      
-      // Check if this is the user's own commission or inherited
-      const isDirectAssignment = c.user_id === userId;
-      setIsInheritedData(!isDirectAssignment);
-      
-    } catch (error: any) {
-      // If 404, commission doesn't exist - show form to configure
-      if (error.response?.status === 404) {
-        setExistingCommission(null);
-        setHasCommissionConfigured(false);
-        setIsInheritedData(false);
-        
-        // Don't reset fields - they might have inherited values from parent
-        // Only reset if it's truly a new configuration
-        if (!mdCommission && !distributorCommission && !retailerCommission) {
-          setMdCommission("");
-          setDistributorCommission("");
-          setRetailerCommission("");
-        }
-      } else {
-        toast.error("Failed to load commission data");
-      }
-    } finally {
-      setLoadingCommission(false);
-    }
-  };
+    const c = res.data.data;
+    setExistingCommission(c);
+
+    setMdCommission(c.master_distributor_commision.toFixed(2));
+    setDistributorCommission(c.distributor_commision.toFixed(2));
+    setRetailerCommission(c.retailer_commision.toFixed(2));
+  } catch {
+    toast.error("Failed to load commission");
+  } finally {
+    setLoadingCommission(false);
+  }
+};
 
   /* ===================== HANDLE MD SELECT ===================== */
 
@@ -365,78 +337,48 @@ export default function CommissionSplit() {
 
   /* ===================== CONFIRM SAVE ===================== */
 
-  const confirmSave = async () => {
-    const token = getAuthToken();
-    setSaving(true);
-    setConfirmDialogOpen(false);
+ const confirmSave = async () => {
+  const token = getAuthToken();
+  setSaving(true);
+  setConfirmDialogOpen(false);
 
-    // Determine which user_id to use based on selection
-    let userId = selectedMD;
-    if (selectedDistributor) userId = selectedDistributor;
-    if (selectedRetailer) userId = selectedRetailer;
+  let userId = selectedMD;
+  if (selectedDistributor) userId = selectedDistributor;
+  if (selectedRetailer) userId = selectedRetailer;
 
-    try {
-      if (existingCommission && !isInheritedData) {
-        // Update existing commission
-        await axios.put(
-          `${API_BASE_URL}/commision/update/commision`,
-          {
-            commision_id: existingCommission.commision_id,
-            total_commision: TOTAL_COMMISSION,
-            admin_commision: adminCommission,
-            master_distributor_commision: Number(mdCommission),
-            distributor_commision: Number(distributorCommission),
-            retailer_commision: Number(retailerCommission),
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        toast.success("Commission updated successfully");
-      } else {
-        // Create new commission for this user
-        await axios.post(
-          `${API_BASE_URL}/commision/create`,
-          {
-            user_id: userId,
-            service: SERVICE_TYPE,
-            total_commision: TOTAL_COMMISSION,
-            admin_commision: adminCommission,
-            master_distributor_commision: Number(mdCommission),
-            distributor_commision: Number(distributorCommission),
-            retailer_commision: Number(retailerCommission),
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        toast.success("Commission created successfully");
-      }
+  try {
+    await axios.put(
+      `${API_BASE_URL}/commision/update`,
+      {
+        user_id: userId,
+        total_commision: TOTAL_COMMISSION,
+        admin_commision: adminCommission,
+        master_distributor_commision: Number(mdCommission),
+        distributor_commision: Number(distributorCommission),
+        retailer_commision: Number(retailerCommission),
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      // Refresh commission data
-      await fetchCommission(userId);
-      
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.message || "Failed to save commission";
-      toast.error(errorMsg);
-      console.error("Save error:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
+    toast.success("Commission updated successfully");
+    await fetchCommission(userId);
+  } catch (err: any) {
+    toast.error(err.response?.data?.message || "Update failed");
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   /* ===================== HANDLE RESET ===================== */
+const handleReset = () => {
+  if (existingCommission) {
+    setMdCommission(existingCommission.master_distributor_commision.toFixed(2));
+    setDistributorCommission(existingCommission.distributor_commision.toFixed(2));
+    setRetailerCommission(existingCommission.retailer_commision.toFixed(2));
+  }
+};
 
-  const handleReset = () => {
-    if (existingCommission && !isInheritedData) {
-      // Reset to existing values
-      setMdCommission(existingCommission.master_distributor_commision.toFixed(2));
-      setDistributorCommission(existingCommission.distributor_commision.toFixed(2));
-      setRetailerCommission(existingCommission.retailer_commision.toFixed(2));
-    } else {
-      // Clear all fields
-      setMdCommission("");
-      setDistributorCommission("");
-      setRetailerCommission("");
-      setHasCommissionConfigured(false);
-    }
-  };
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -616,194 +558,152 @@ export default function CommissionSplit() {
         </Card>
 
         {/* Commission Configuration - Only show if hierarchy is selected */}
-        {selectedMD && (
-          <>
-            {loadingCommission ? (
-              <Card className="shadow-md">
-                <CardContent className="p-12">
-                  <div className="flex flex-col items-center justify-center">
-                    <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-                    <p className="text-gray-600">Loading commission configuration...</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : !hasCommissionConfigured && !mdCommission && !distributorCommission && !retailerCommission && !selectedDistributor && !selectedRetailer ? (
-              /* No Commission Configured State - ONLY for Master Distributor level */
-              <Card className="shadow-md border-2 border-dashed border-gray-300">
-                <CardContent className="p-12">
-                  <div className="flex flex-col items-center justify-center text-center">
-                    <div className="p-4 bg-gray-100 rounded-full mb-4">
-                      <AlertCircle className="h-12 w-12 text-gray-400" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      No commission configured yet
-                    </h3>
-                    <p className="text-gray-600 mb-6 max-w-md">
-                      Configure commission splits for this Master Distributor to get started
-                    </p>
-                    <Button
-                      onClick={() => {
-                        setHasCommissionConfigured(true);
-                      }}
-                      className="paybazaar-button h-12"
-                    >
-                      <Percent className="h-4 w-4 mr-2" />
-                      Configure Commission
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              /* Commission Split Form */
-              <Card className="shadow-md">
-                <CardContent className="p-0">
-                  <div className="p-6 md:p-8 space-y-8">
-                    {/* Section Header */}
-                    <div className="flex items-center gap-3 pb-4 border-b">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                        <Percent className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-lg font-semibold text-gray-900">Commission Split</h2>
-                          {existingCommission && !isInheritedData && (
-                            <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                              Editing Existing
-                            </span>
-                          )}
-                          {isInheritedData && (
-                            <span className="text-xs font-medium px-2 py-1 bg-amber-100 text-amber-700 rounded">
-                              Inherited from Parent
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">Configure commission distribution (Total must equal 1.00%)</p>
-                      </div>
-                    </div>
+      {selectedMD && (
+  <>
+    {loadingCommission ? (
+      <Card className="shadow-md">
+        <CardContent className="p-12">
+          <div className="flex flex-col items-center justify-center">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+            <p className="text-gray-600">Loading commission configuration...</p>
+          </div>
+        </CardContent>
+      </Card>
+    ) : (
+      <Card className="shadow-md">
+        <CardContent className="p-0">
+          <div className="p-6 md:p-8 space-y-8">
+            {/* Section Header */}
+            <div className="flex items-center gap-3 pb-4 border-b">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                <Percent className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Commission Split
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Configure commission distribution (Total must equal 1.00%)
+                </p>
+              </div>
+            </div>
 
-                    {/* Commission Inputs */}
-                    <div className="space-y-6">
-                      {/* Master Distributor Commission */}
-                      <div className="space-y-2">
-                        <Label htmlFor="md_commission" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                          Master Distributor Commission (%) <span className="text-red-500">*</span>
-                          {isMDLocked && <Lock className="h-3 w-3 text-gray-400 ml-auto" />}
-                        </Label>
-                        <Input
-                          id="md_commission"
-                          type="text"
-                          inputMode="decimal"
-                          value={mdCommission}
-                          onChange={(e) => handleCommissionChange("md", e.target.value)}
-                          disabled={isMDLocked}
-                          className={cn(
-                            "h-12 text-lg font-semibold",
-                            isMDLocked ? "bg-gray-100 cursor-not-allowed" : "bg-white"
-                          )}
-                          placeholder="0.00"
-                        />
-                      </div>
+            {/* Commission Inputs */}
+            <div className="space-y-6">
+              {/* Master Distributor */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Master Distributor Commission (%) <span className="text-red-500">*</span>
+                  {isMDLocked && <Lock className="h-3 w-3 text-gray-400 ml-auto" />}
+                </Label>
+                <Input
+                  value={mdCommission}
+                  onChange={(e) => handleCommissionChange("md", e.target.value)}
+                  disabled={isMDLocked}
+                  className={cn(
+                    "h-12 text-lg font-semibold",
+                    isMDLocked ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+                  )}
+                  placeholder="0.00"
+                />
+              </div>
 
-                      {/* Distributor Commission */}
-                      <div className="space-y-2">
-                        <Label htmlFor="dist_commission" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                          Distributor Commission (%) <span className="text-red-500">*</span>
-                          {isDistributorLocked && <Lock className="h-3 w-3 text-gray-400 ml-auto" />}
-                        </Label>
-                        <Input
-                          id="dist_commission"
-                          type="text"
-                          inputMode="decimal"
-                          value={distributorCommission}
-                          onChange={(e) => handleCommissionChange("distributor", e.target.value)}
-                          disabled={isDistributorLocked}
-                          className={cn(
-                            "h-12 text-lg font-semibold",
-                            isDistributorLocked ? "bg-gray-100 cursor-not-allowed" : "bg-white"
-                          )}
-                          placeholder="0.00"
-                        />
-                      </div>
+              {/* Distributor */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Distributor Commission (%) <span className="text-red-500">*</span>
+                  {isDistributorLocked && <Lock className="h-3 w-3 text-gray-400 ml-auto" />}
+                </Label>
+                <Input
+                  value={distributorCommission}
+                  onChange={(e) =>
+                    handleCommissionChange("distributor", e.target.value)
+                  }
+                  disabled={isDistributorLocked}
+                  className={cn(
+                    "h-12 text-lg font-semibold",
+                    isDistributorLocked ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+                  )}
+                  placeholder="0.00"
+                />
+              </div>
 
-                      {/* Retailer Commission */}
-                      <div className="space-y-2">
-                        <Label htmlFor="retailer_commission" className="text-sm font-medium text-gray-700">
-                          Retailer Commission (%) <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="retailer_commission"
-                          type="text"
-                          inputMode="decimal"
-                          value={retailerCommission}
-                          onChange={(e) => handleCommissionChange("retailer", e.target.value)}
-                          className="h-12 text-lg font-semibold bg-white"
-                          placeholder="0.00"
-                        />
-                      </div>
+              {/* Retailer */}
+              <div className="space-y-2">
+                <Label>
+                  Retailer Commission (%) <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={retailerCommission}
+                  onChange={(e) =>
+                    handleCommissionChange("retailer", e.target.value)
+                  }
+                  className="h-12 text-lg font-semibold bg-white"
+                  placeholder="0.00"
+                />
+              </div>
 
-                      {/* Admin Commission Display */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700">
-                            Admin Commission (Remainder):
-                          </span>
-                          <span className={cn(
-                            "text-xl font-bold",
-                            adminCommission < 0 ? "text-red-600" : "text-blue-900"
-                          )}>
-                            {adminCommission.toFixed(2)}%
-                          </span>
-                        </div>
-                        {validationError && (
-                          <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
-                            <AlertCircle className="h-4 w-4" />
-                            {validationError}
-                          </p>
-                        )}
-                        {!validationError && (mdCommission || distributorCommission || retailerCommission) && (
-                          <p className="text-sm text-gray-600 mt-2">
-                            Admin automatically receives the remaining commission
-                          </p>
-                        )}
-                      </div>
-                    </div>
+              {/* Admin */}
+              <div className="pt-4 border-t">
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">
+                    Admin Commission (Auto)
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xl font-bold",
+                      adminCommission < 0 ? "text-red-600" : "text-blue-900"
+                    )}
+                  >
+                    {adminCommission.toFixed(2)}%
+                  </span>
+                </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-4 pt-6 border-t">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleReset}
-                        disabled={saving}
-                        className="flex-1 h-12 border-gray-300"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving || !!validationError || !mdCommission || !distributorCommission || !retailerCommission}
-                        className="flex-1 h-12 paybazaar-button"
-                      >
-                        {saving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            Save Configuration
-                            <ArrowRight className="h-4 w-4 ml-2" />
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+                {validationError && (
+                  <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {validationError}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 pt-6 border-t">
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={saving}
+                className="flex-1 h-12"
+              >
+                Reset
+              </Button>
+
+              <Button
+                onClick={handleSave}
+                disabled={saving || !!validationError}
+                className="flex-1 h-12 paybazaar-button"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Save Configuration
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )}
+  </>
+)}
+
 
         {/* Confirmation Dialog */}
         <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
