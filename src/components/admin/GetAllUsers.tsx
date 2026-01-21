@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import {
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -75,7 +76,6 @@ interface EditFormData {
   business_name: string;
   business_type: string;
   gst_number: string;
-
 }
 
 /* -------------------- AUTH HELPER -------------------- */
@@ -144,8 +144,6 @@ export default function GetAllRetailers() {
           }
         );
 
-        console.log("Distributors API Response:", res.data);
-
         if (res.data?.status === "success" && res.data?.data) {
           const list = res.data.data.distributors || [];
           
@@ -159,7 +157,6 @@ export default function GetAllRetailers() {
 
           setDistributors(normalized);
           
-          // Auto-select first distributor
           if (normalized.length > 0) {
             setSelectedDistributor(normalized[0].distributor_id);
           }
@@ -167,7 +164,6 @@ export default function GetAllRetailers() {
           toast.error("Failed to load distributors");
         }
       } catch (error: any) {
-        console.error("Error fetching distributors:", error);
         toast.error(error.response?.data?.message || "Failed to load distributors");
       } finally {
         setLoadingDistributors(false);
@@ -201,8 +197,6 @@ export default function GetAllRetailers() {
         }
       );
 
-      console.log("Retailers API Response:", res.data);
-
       if (res.data?.status === "success" && res.data?.data) {
         const list = res.data.data.retailers || [];
         setRetailers(list);
@@ -211,7 +205,6 @@ export default function GetAllRetailers() {
         toast.error("Failed to load retailers");
       }
     } catch (error: any) {
-      console.error("Error fetching retailers:", error);
       toast.error(error.response?.data?.message || "Failed to load retailers");
     } finally {
       setLoadingRetailers(false);
@@ -245,8 +238,6 @@ export default function GetAllRetailers() {
         },
       });
 
-      console.log("Retailer Profile Response:", response.data);
-
       const retData = response.data?.data?.retailer || response.data?.data;
 
       if (!retData) {
@@ -272,7 +263,6 @@ export default function GetAllRetailers() {
 
       toast.success("Profile loaded successfully");
     } catch (error: any) {
-      console.error("Error fetching retailer profile:", error);
       toast.error(error.response?.data?.message || "Failed to load profile");
       setEditDialogOpen(false);
     } finally {
@@ -305,7 +295,6 @@ export default function GetAllRetailers() {
       retailer_id: selectedRetailer.retailer_id,
     };
 
-    // List of editable fields - compare form data with original retailer data
     const allowedKeys = [
       "retailer_name",
       "retailer_phone",
@@ -332,8 +321,6 @@ export default function GetAllRetailers() {
       return;
     }
 
-    console.log("Update Payload:", payload);
-
     try {
       setIsUpdating(true);
 
@@ -351,10 +338,82 @@ export default function GetAllRetailers() {
       
       fetchRetailers(selectedDistributor);
     } catch (error: any) {
-      console.error("Update error:", error);
       toast.error(error.response?.data?.message || "Update failed");
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      if (retailers.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const data = retailers.map((r, index) => ({
+        "S.No": index + 1,
+        "Distributor ID": r.distributor_id,
+        "Retailer ID": r.retailer_id,
+        "Name": r.retailer_name,
+        "Email": r.retailer_email,
+        "Phone": r.retailer_phone,
+        "Business Name": r.business_name || "N/A",
+        "Business Type": r.business_type || "N/A",
+        "GST Number": r.gst_number || "N/A",
+        "Aadhar Number": r.aadhar_number,
+        "PAN Number": r.pan_number,
+        "Date of Birth": formatDate(r.date_of_birth),
+        "Gender": r.gender,
+        "Address": r.address || "N/A",
+        "City": r.city || "N/A",
+        "State": r.state || "N/A",
+        "Pincode": r.pincode || "N/A",
+        "Wallet Balance (₹)": r.wallet_balance?.toFixed(2) || "0.00",
+        "KYC Status": r.kyc_status ? "Verified" : "Pending",
+        "Account Status": r.is_blocked ? "Blocked" : "Active",
+        "Created At": formatDate(r.created_at),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 6 },  // S.No
+        { wch: 25 }, // Distributor ID
+        { wch: 25 }, // Retailer ID
+        { wch: 25 }, // Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 25 }, // Business Name
+        { wch: 20 }, // Business Type
+        { wch: 18 }, // GST Number
+        { wch: 15 }, // Aadhar
+        { wch: 12 }, // PAN
+        { wch: 15 }, // DOB
+        { wch: 10 }, // Gender
+        { wch: 40 }, // Address
+        { wch: 15 }, // City
+        { wch: 15 }, // State
+        { wch: 10 }, // Pincode
+        { wch: 18 }, // Wallet Balance
+        { wch: 15 }, // KYC Status
+        { wch: 15 }, // Account Status
+        { wch: 20 }, // Created At
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Retailers");
+
+      const distName = distributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name || selectedDistributor;
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `Retailers_${distName.replace(/\s+/g, '_')}_${timestamp}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      toast.success(`Exported ${retailers.length} retailers successfully`);
+    } catch (error) {
+      toast.error("Failed to export data");
     }
   };
 
@@ -397,15 +456,26 @@ export default function GetAllRetailers() {
             Manage and view all retailers
           </p>
         </div>
-        <Button 
-          onClick={() => selectedDistributor && fetchRetailers(selectedDistributor)} 
-          variant="outline" 
-          size="sm"
-          disabled={!selectedDistributor}
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={exportToExcel}
+            variant="outline"
+            size="sm"
+            disabled={retailers.length === 0 || !selectedDistributor}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button 
+            onClick={() => selectedDistributor && fetchRetailers(selectedDistributor)} 
+            variant="outline" 
+            size="sm"
+            disabled={!selectedDistributor}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Distributor Selection Card */}
@@ -546,17 +616,29 @@ export default function GetAllRetailers() {
                       Previous
                     </Button>
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setCurrentPage(page)}
-                          className="w-10"
-                        >
-                          {page}
-                        </Button>
-                      ))}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-10"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
                     </div>
                     <Button
                       variant="outline"
@@ -836,9 +918,6 @@ export default function GetAllRetailers() {
                     </div>
                   </div>
                 </div>
-
-
-   
               </div>
             )
           )}

@@ -91,8 +91,9 @@ const PayoutTransactionPage = () => {
     return today.toISOString().split('T')[0];
   };
   
-  // All Transactions Tab States
-  const [allTransactions, setAllTransactions] = useState<PayoutTransaction[]>([]);
+  // All Transactions - Raw data from API
+  const [allTransactionsRaw, setAllTransactionsRaw] = useState<PayoutTransaction[]>([]);
+  // All Transactions - Filtered data
   const [filteredAllTransactions, setFilteredAllTransactions] = useState<PayoutTransaction[]>([]);
   const [allSearchTerm, setAllSearchTerm] = useState("");
   const [allStatusFilter, setAllStatusFilter] = useState("ALL");
@@ -100,21 +101,20 @@ const PayoutTransactionPage = () => {
   const [allEndDate, setAllEndDate] = useState(getTodayDate());
   const [allCurrentPage, setAllCurrentPage] = useState(1);
   const [allRecordsPerPage, setAllRecordsPerPage] = useState(10);
-  const [allTotalRecords, setAllTotalRecords] = useState(0);
   
-  // Custom Tab States
+  // Custom Tab - Raw data from API
+  const [userTransactionsRaw, setUserTransactionsRaw] = useState<PayoutTransaction[]>([]);
+  // Custom Tab - Filtered data
+  const [filteredUserTransactions, setFilteredUserTransactions] = useState<PayoutTransaction[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
   const [openUserCombobox, setOpenUserCombobox] = useState(false);
-  const [userTransactions, setUserTransactions] = useState<PayoutTransaction[]>([]);
-  const [filteredUserTransactions, setFilteredUserTransactions] = useState<PayoutTransaction[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState("ALL");
   const [userStartDate, setUserStartDate] = useState(getTodayDate());
   const [userEndDate, setUserEndDate] = useState(getTodayDate());
   const [userCurrentPage, setUserCurrentPage] = useState(1);
   const [userRecordsPerPage, setUserRecordsPerPage] = useState(10);
-  const [userTotalRecords, setUserTotalRecords] = useState(0);
   
   // Loading states
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -141,29 +141,22 @@ const PayoutTransactionPage = () => {
 
   // Decode token
   useEffect(() => {
-    console.log("🔐 Checking authentication token...");
-    
     if (!token) {
-      console.error("❌ No authentication token found");
       toast.error("No authentication token found. Please login.");
       return;
     }
 
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      console.log("✅ Token decoded successfully:", { admin_id: decoded.admin_id });
       
       if (!decoded.exp || decoded.exp * 1000 < Date.now()) {
-        console.error("❌ Token has expired");
         toast.error("Session expired. Please login again.");
         localStorage.removeItem("authToken");
         return;
       }
       
       setAdminId(decoded.admin_id);
-      console.log("✅ Admin ID set:", decoded.admin_id);
     } catch (error) {
-      console.error("❌ Error decoding token:", error);
       toast.error("Invalid token. Please login again.");
     }
   }, [token]);
@@ -172,11 +165,9 @@ const PayoutTransactionPage = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       if (!adminId || !token) {
-        console.log("⏸️ Skipping user fetch - waiting for admin ID and token");
         return;
       }
 
-      console.log(`🔄 Fetching users for admin: ${adminId}`);
       setLoadingUsers(true);
       
       try {
@@ -190,24 +181,13 @@ const PayoutTransactionPage = () => {
           }
         );
 
-        console.log("📦 Users API response:", response.data);
-
         if (response.data.status === "success" && response.data.data) {
           const usersList = response.data.data.retailers || [];
-          
-          console.log(`✅ Loaded ${usersList.length} users`);
           setUsers(usersList);
         } else {
-          console.warn("⚠️ Unexpected response format or no data");
           setUsers([]);
         }
       } catch (error: any) {
-        console.error("❌ Error fetching users:", error);
-        console.error("Error details:", {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-        });
         toast.error(error.response?.data?.message || "Failed to fetch retailers");
         setUsers([]);
       } finally {
@@ -218,222 +198,158 @@ const PayoutTransactionPage = () => {
     fetchUsers();
   }, [adminId, token]);
 
-  // Build query params helper
-  const buildQueryParams = (params: {
-    limit?: number;
-    offset?: number;
-    start_date?: string;
-    end_date?: string;
-    status?: string;
-  }) => {
-    const queryParams = new URLSearchParams();
-    
-    if (params.limit) queryParams.append('limit', params.limit.toString());
-    if (params.offset !== undefined) queryParams.append('offset', params.offset.toString());
-    if (params.start_date) queryParams.append('start_date', params.start_date);
-    if (params.end_date) queryParams.append('end_date', params.end_date);
-    if (params.status && params.status !== 'ALL') queryParams.append('status', params.status);
-    
-    return queryParams.toString();
-  };
-
-  // Fetch all transactions with query params
-  const fetchAllTransactions = useCallback(async (applyFilters = false) => {
+  // Fetch all transactions (no filters in API)
+  const fetchAllTransactions = useCallback(async () => {
     if (!token) {
-      console.error("❌ fetchAllTransactions: No token available");
       toast.error("Authentication required");
       return;
     }
 
-    console.log("🔄 Fetching all transactions...");
     setLoadingAllTransactions(true);
     
     try {
-      const offset = (allCurrentPage - 1) * allRecordsPerPage;
-      const queryString = buildQueryParams({
-        limit: allRecordsPerPage,
-        offset: offset,
-        start_date: allStartDate,
-        end_date: allEndDate,
-        status: allStatusFilter,
-      });
-
-      console.log("📋 Query params:", queryString);
-
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get?${queryString}`,
+        `${import.meta.env.VITE_API_BASE_URL}/payout/get`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-
-      console.log("📦 All transactions API response:", response.data);
       
       const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
-      
-      console.log(`✅ Processing ${list.length} transactions`);
       
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      setAllTransactions(sorted);
-      setAllTotalRecords(response.data?.data?.total || sorted.length);
-      
-      // Apply client-side search filter if needed
-      if (applyFilters && allSearchTerm.trim()) {
-        const filtered = sorted.filter((t) =>
-          t.order_id.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
-          t.mobile_number.includes(allSearchTerm) ||
-          t.beneficiary_name.toLowerCase().includes(allSearchTerm.toLowerCase()) ||
-          t.beneficiary_account_number.includes(allSearchTerm) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(allSearchTerm.toLowerCase()))
-        );
-        setFilteredAllTransactions(filtered);
-      } else {
-        setFilteredAllTransactions(sorted);
-      }
-      
+      setAllTransactionsRaw(sorted);
       toast.success(`Loaded ${sorted.length} transactions`);
     } catch (error: any) {
-      console.error("❌ Error fetching all transactions:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
       toast.error(error.response?.data?.message || "Failed to fetch transactions");
-      setAllTransactions([]);
-      setFilteredAllTransactions([]);
+      setAllTransactionsRaw([]);
     } finally {
       setLoadingAllTransactions(false);
     }
-  }, [token, allCurrentPage, allRecordsPerPage, allStartDate, allEndDate, allStatusFilter, allSearchTerm]);
+  }, [token]);
 
-  // Fetch transactions for selected user with query params
-  const fetchUserTransactions = useCallback(async (applyFilters = false) => {
+  // Fetch transactions for selected user (no filters in API)
+  const fetchUserTransactions = useCallback(async () => {
     if (!selectedUserId || !token) {
-      console.log("⏸️ Skipping user transactions fetch - missing user ID or token");
       return;
     }
 
-    console.log(`🔄 Fetching transactions for user: ${selectedUserId}`);
     setLoadingUserTransactions(true);
     
     try {
-      const offset = (userCurrentPage - 1) * userRecordsPerPage;
-      const queryString = buildQueryParams({
-        limit: userRecordsPerPage,
-        offset: offset,
-        start_date: userStartDate,
-        end_date: userEndDate,
-        status: userStatusFilter,
-      });
-
-      console.log("📋 Query params:", queryString);
-
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}?${queryString}`,
+        `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      console.log("📦 User transactions API response:", response.data);
       
       const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
-      
-      console.log(`✅ Processing ${list.length} user transactions`);
 
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      setUserTransactions(sorted);
-      setUserTotalRecords(response.data?.data?.total || sorted.length);
-      
-      // Apply client-side search filter if needed
-      if (applyFilters && userSearchTerm.trim()) {
-        const filtered = sorted.filter((t) =>
-          t.order_id.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-          t.mobile_number.includes(userSearchTerm) ||
-          t.beneficiary_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-          t.beneficiary_account_number.includes(userSearchTerm) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(userSearchTerm.toLowerCase()))
-        );
-        setFilteredUserTransactions(filtered);
-      } else {
-        setFilteredUserTransactions(sorted);
-      }
-      
+      setUserTransactionsRaw(sorted);
       toast.success(`Loaded ${sorted.length} transactions`);
     } catch (error: any) {
-      console.error("❌ Error fetching user transactions:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
       toast.error(error.response?.data?.message || "Failed to fetch transactions");
-      setUserTransactions([]);
-      setFilteredUserTransactions([]);
+      setUserTransactionsRaw([]);
     } finally {
       setLoadingUserTransactions(false);
     }
-  }, [selectedUserId, token, userCurrentPage, userRecordsPerPage, userStartDate, userEndDate, userStatusFilter, userSearchTerm]);
+  }, [selectedUserId, token]);
 
-  // Effect for fetching user transactions when filters change
+  // Effect for fetching user transactions when user changes
   useEffect(() => {
     if (selectedUserId && token) {
-      fetchUserTransactions(true);
+      fetchUserTransactions();
     } else {
-      setUserTransactions([]);
+      setUserTransactionsRaw([]);
       setFilteredUserTransactions([]);
     }
-  }, [selectedUserId, token, userCurrentPage, userRecordsPerPage, userStartDate, userEndDate, userStatusFilter]);
+  }, [selectedUserId, token, fetchUserTransactions]);
 
-  // Apply client-side search for all transactions
+  // Apply ALL filters for All Transactions (date, status, search)
   useEffect(() => {
-    if (!allSearchTerm.trim()) {
-      setFilteredAllTransactions(allTransactions);
-      return;
+    let filtered = [...allTransactionsRaw];
+
+    // Date range filter
+    if (allStartDate || allEndDate) {
+      filtered = filtered.filter((t) => {
+        const txDate = new Date(t.created_at);
+        const txDateStr = txDate.toISOString().split('T')[0];
+        
+        const start = allStartDate || "1900-01-01";
+        const end = allEndDate || "2100-12-31";
+        
+        return txDateStr >= start && txDateStr <= end;
+      });
     }
 
-    const s = allSearchTerm.toLowerCase();
-    const filtered = allTransactions.filter((t) =>
-      t.order_id.toLowerCase().includes(s) ||
-      t.mobile_number.includes(s) ||
-      t.beneficiary_name.toLowerCase().includes(s) ||
-      t.beneficiary_account_number.includes(s) ||
-      (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
-    );
-    
+    // Status filter
+    if (allStatusFilter && allStatusFilter !== "ALL") {
+      filtered = filtered.filter((t) => 
+        t.payout_transaction_status.toUpperCase() === allStatusFilter.toUpperCase()
+      );
+    }
+
+    // Search filter
+    if (allSearchTerm.trim()) {
+      const s = allSearchTerm.toLowerCase();
+      filtered = filtered.filter((t) =>
+        t.order_id.toLowerCase().includes(s) ||
+        t.mobile_number.includes(s) ||
+        t.beneficiary_name.toLowerCase().includes(s) ||
+        t.beneficiary_account_number.includes(s) ||
+        (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+      );
+    }
+
     setFilteredAllTransactions(filtered);
-  }, [allSearchTerm, allTransactions]);
+    setAllCurrentPage(1);
+  }, [allTransactionsRaw, allStartDate, allEndDate, allStatusFilter, allSearchTerm]);
 
-  // Apply client-side search for user transactions
+  // Apply ALL filters for User Transactions (date, status, search)
   useEffect(() => {
-    if (!userSearchTerm.trim()) {
-      setFilteredUserTransactions(userTransactions);
-      return;
+    let filtered = [...userTransactionsRaw];
+
+    // Date range filter
+    if (userStartDate || userEndDate) {
+      filtered = filtered.filter((t) => {
+        const txDate = new Date(t.created_at);
+        const txDateStr = txDate.toISOString().split('T')[0];
+        
+        const start = userStartDate || "1900-01-01";
+        const end = userEndDate || "2100-12-31";
+        
+        return txDateStr >= start && txDateStr <= end;
+      });
     }
 
-    const s = userSearchTerm.toLowerCase();
-    const filtered = userTransactions.filter((t) =>
-      t.order_id.toLowerCase().includes(s) ||
-      t.mobile_number.includes(s) ||
-      t.beneficiary_name.toLowerCase().includes(s) ||
-      t.beneficiary_account_number.includes(s) ||
-      (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
-    );
-    
+    // Status filter
+    if (userStatusFilter && userStatusFilter !== "ALL") {
+      filtered = filtered.filter((t) => 
+        t.payout_transaction_status.toUpperCase() === userStatusFilter.toUpperCase()
+      );
+    }
+
+    // Search filter
+    if (userSearchTerm.trim()) {
+      const s = userSearchTerm.toLowerCase();
+      filtered = filtered.filter((t) =>
+        t.order_id.toLowerCase().includes(s) ||
+        t.mobile_number.includes(s) ||
+        t.beneficiary_name.toLowerCase().includes(s) ||
+        t.beneficiary_account_number.includes(s) ||
+        (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+      );
+    }
+
     setFilteredUserTransactions(filtered);
-  }, [userSearchTerm, userTransactions]);
-
-  // Fetch all transactions on filter change
-  useEffect(() => {
-    if (token) {
-      fetchAllTransactions(false);
-    }
-  }, [allCurrentPage, allRecordsPerPage, allStartDate, allEndDate, allStatusFilter]);
+    setUserCurrentPage(1);
+  }, [userTransactionsRaw, userStartDate, userEndDate, userStatusFilter, userSearchTerm]);
 
   // Clear filters
   const clearAllFilters = () => {
@@ -454,59 +370,10 @@ const PayoutTransactionPage = () => {
     toast.success("All filters cleared");
   };
 
-  // Export to Excel - fetch all data without pagination
+  // Export to Excel
   const exportToExcel = async (isUserData: boolean) => {
     try {
-      toast.info("Fetching all data for export...");
-      
-      let allData: PayoutTransaction[] = [];
-      
-      if (isUserData && selectedUserId) {
-        // Fetch all user transactions without pagination
-        const queryString = buildQueryParams({
-          limit: 10000, // Large number to get all records
-          offset: 0,
-          start_date: userStartDate,
-          end_date: userEndDate,
-          status: userStatusFilter,
-        });
-
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}?${queryString}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        allData = response.data?.data?.payout_transactions || [];
-      } else {
-        // Fetch all transactions without pagination
-        const queryString = buildQueryParams({
-          limit: 10000, // Large number to get all records
-          offset: 0,
-          start_date: allStartDate,
-          end_date: allEndDate,
-          status: allStatusFilter,
-        });
-
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/payout/get?${queryString}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        allData = response.data?.data?.payout_transactions || [];
-      }
-
-      // Apply search filter if present
-      const searchTerm = isUserData ? userSearchTerm : allSearchTerm;
-      if (searchTerm.trim()) {
-        const s = searchTerm.toLowerCase();
-        allData = allData.filter((t) =>
-          t.order_id.toLowerCase().includes(s) ||
-          t.mobile_number.includes(s) ||
-          t.beneficiary_name.toLowerCase().includes(s) ||
-          t.beneficiary_account_number.includes(s) ||
-          (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
-        );
-      }
+      const allData = isUserData ? filteredUserTransactions : filteredAllTransactions;
 
       if (allData.length === 0) {
         toast.error("No transactions to export");
@@ -563,7 +430,6 @@ const PayoutTransactionPage = () => {
       const finalData = [...data, summaryRow];
       const ws = XLSX.utils.json_to_sheet(finalData);
 
-      // Set column widths
       ws["!cols"] = [
         { wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 25 },
         { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 18 },
@@ -582,7 +448,6 @@ const PayoutTransactionPage = () => {
       XLSX.writeFile(wb, filename);
       toast.success(`Exported ${allData.length} transactions successfully`);
     } catch (error) {
-      console.error("Export error:", error);
       toast.error("Failed to export data");
     }
   };
@@ -593,12 +458,6 @@ const PayoutTransactionPage = () => {
       toast.error("Missing required data");
       return;
     }
-
-    console.log("🔄 Updating transaction status...", {
-      transaction_id: selectedTransaction.payout_transaction_id,
-      new_status: newStatus,
-      operator_txn_id: operatorTxnId,
-    });
 
     const requestPayload = {
       payout_transaction_id: selectedTransaction.payout_transaction_id,
@@ -618,28 +477,20 @@ const PayoutTransactionPage = () => {
         },
       });
 
-      console.log("✅ Update response:", response.data);
-
       if (response.status === 200 && response.data?.status === "success") {
         toast.success(`Transaction status updated to ${newStatus}`);
         setOperatorTxnId("");
         setDetailsOpen(false);
         
         // Refresh both lists
-        fetchAllTransactions(true);
+        fetchAllTransactions();
         if (selectedUserId) {
-          fetchUserTransactions(true);
+          fetchUserTransactions();
         }
       } else {
         toast.error(response.data?.message || "Failed to update transaction status");
       }
     } catch (error: any) {
-      console.error("❌ Update error:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
       const errorMessage = error.response?.data?.message || "Failed to update transaction status";
       toast.error(errorMessage);
     } finally {
@@ -695,12 +546,14 @@ const PayoutTransactionPage = () => {
   const renderTransactionTable = (
     transactions: PayoutTransaction[],
     currentPage: number,
-    totalRecords: number,
     recordsPerPage: number,
     setCurrentPage: (page: number) => void,
     loading: boolean
   ) => {
-    const totalPages = Math.ceil(totalRecords / recordsPerPage);
+    const totalPages = Math.ceil(transactions.length / recordsPerPage);
+    const indexOfLastRecord = currentPage * recordsPerPage;
+    const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
+    const paginatedTransactions = transactions.slice(indexOfFirstRecord, indexOfLastRecord);
 
     if (loading) {
       return (
@@ -749,7 +602,7 @@ const PayoutTransactionPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.map((tx, idx) => (
+              {paginatedTransactions.map((tx, idx) => (
                 <TableRow
                   key={tx.payout_transaction_id}
                   className={`border-b hover:bg-gray-50 ${
@@ -794,7 +647,7 @@ const PayoutTransactionPage = () => {
         {totalPages > 1 && (
           <div className="flex flex-col sm:flex-row items-center justify-between border-t px-4 md:px-6 py-4 gap-3">
             <div className="text-sm text-gray-600">
-              Page {currentPage} of {totalPages} ({totalRecords} total records)
+              Page {currentPage} of {totalPages} ({transactions.length} total records)
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -867,7 +720,7 @@ const PayoutTransactionPage = () => {
       {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="all" onClick={() => fetchAllTransactions(true)}>
+          <TabsTrigger value="all" onClick={() => fetchAllTransactions()}>
             All Transactions
           </TabsTrigger>
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
@@ -902,10 +755,7 @@ const PayoutTransactionPage = () => {
                     <Input
                       type="date"
                       value={allStartDate}
-                      onChange={(e) => {
-                        setAllStartDate(e.target.value);
-                        setAllCurrentPage(1);
-                      }}
+                      onChange={(e) => setAllStartDate(e.target.value)}
                       max={allEndDate || getTodayDate()}
                       className="bg-white"
                     />
@@ -919,10 +769,7 @@ const PayoutTransactionPage = () => {
                     <Input
                       type="date"
                       value={allEndDate}
-                      onChange={(e) => {
-                        setAllEndDate(e.target.value);
-                        setAllCurrentPage(1);
-                      }}
+                      onChange={(e) => setAllEndDate(e.target.value)}
                       min={allStartDate}
                       max={getTodayDate()}
                       className="bg-white"
@@ -933,10 +780,7 @@ const PayoutTransactionPage = () => {
                     <Label className="text-sm font-medium text-gray-700">Status</Label>
                     <Select 
                       value={allStatusFilter} 
-                      onValueChange={(value) => {
-                        setAllStatusFilter(value);
-                        setAllCurrentPage(1);
-                      }}
+                      onValueChange={(value) => setAllStatusFilter(value)}
                     >
                       <SelectTrigger className="bg-white">
                         <SelectValue />
@@ -1008,7 +852,7 @@ const PayoutTransactionPage = () => {
                     Export
                   </Button>
                   <Button
-                    onClick={() => fetchAllTransactions(true)}
+                    onClick={() => fetchAllTransactions()}
                     disabled={loadingAllTransactions}
                     variant="outline"
                     size="sm"
@@ -1022,7 +866,6 @@ const PayoutTransactionPage = () => {
               {renderTransactionTable(
                 filteredAllTransactions,
                 allCurrentPage,
-                allTotalRecords,
                 allRecordsPerPage,
                 setAllCurrentPage,
                 loadingAllTransactions
@@ -1122,10 +965,7 @@ const PayoutTransactionPage = () => {
                         <Input
                           type="date"
                           value={userStartDate}
-                          onChange={(e) => {
-                            setUserStartDate(e.target.value);
-                            setUserCurrentPage(1);
-                          }}
+                          onChange={(e) => setUserStartDate(e.target.value)}
                           max={userEndDate || getTodayDate()}
                           className="bg-white"
                         />
@@ -1139,10 +979,7 @@ const PayoutTransactionPage = () => {
                         <Input
                           type="date"
                           value={userEndDate}
-                          onChange={(e) => {
-                            setUserEndDate(e.target.value);
-                            setUserCurrentPage(1);
-                          }}
+                          onChange={(e) => setUserEndDate(e.target.value)}
                           min={userStartDate}
                           max={getTodayDate()}
                           className="bg-white"
@@ -1153,10 +990,7 @@ const PayoutTransactionPage = () => {
                         <Label className="text-sm font-medium text-gray-700">Status</Label>
                         <Select 
                           value={userStatusFilter} 
-                          onValueChange={(value) => {
-                            setUserStatusFilter(value);
-                            setUserCurrentPage(1);
-                          }}
+                          onValueChange={(value) => setUserStatusFilter(value)}
                         >
                           <SelectTrigger className="bg-white">
                             <SelectValue />
@@ -1228,7 +1062,7 @@ const PayoutTransactionPage = () => {
                         Export
                       </Button>
                       <Button
-                        onClick={() => fetchUserTransactions(true)}
+                        onClick={() => fetchUserTransactions()}
                         disabled={loadingUserTransactions}
                         variant="outline"
                         size="sm"
@@ -1242,7 +1076,6 @@ const PayoutTransactionPage = () => {
                   {renderTransactionTable(
                     filteredUserTransactions,
                     userCurrentPage,
-                    userTotalRecords,
                     userRecordsPerPage,
                     setUserCurrentPage,
                     loadingUserTransactions

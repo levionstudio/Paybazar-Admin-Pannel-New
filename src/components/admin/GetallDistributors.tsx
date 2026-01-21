@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import {
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, Building, Ban, CheckCircle } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, MapPin, Building, Ban, CheckCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -50,6 +51,7 @@ interface Distributor {
   business_type: string;
   gst_number: string;
   wallet_balance: number;
+  kyc_status: boolean;
   is_blocked: boolean;
   created_at: string;
   updated_at: string;
@@ -203,7 +205,6 @@ export default function GetAllDistributor() {
         toast.error("Failed to load distributors");
       }
     } catch (error: any) {
-      console.error("Error fetching distributors:", error);
       toast.error(error.response?.data?.message || "Failed to load distributors");
     } finally {
       setLoadingDistributors(false);
@@ -237,8 +238,6 @@ export default function GetAllDistributor() {
         },
       });
 
-      console.log("DISTRIBUTOR PROFILE RESPONSE:", response.data);
-
       const distData = response.data?.data?.distributor || response.data?.data;
 
       if (!distData) {
@@ -266,7 +265,6 @@ export default function GetAllDistributor() {
 
       toast.success("Profile loaded successfully");
     } catch (error: any) {
-      console.error("Error fetching distributor profile:", error);
       toast.error(error.response?.data?.message || "Failed to load profile");
       setEditDialogOpen(false);
     } finally {
@@ -299,7 +297,6 @@ export default function GetAllDistributor() {
       distributor_id: selectedDistributor.distributor_id,
     };
 
-    // List of editable fields - compare form data with original distributor data
     const allowedKeys = [
       "distributor_name",
       "distributor_phone",
@@ -310,8 +307,6 @@ export default function GetAllDistributor() {
       "business_name",
       "business_type",
       "gst_number",
-      "kyc_status",
-      "is_blocked",
     ];
 
     allowedKeys.forEach((key) => {
@@ -323,12 +318,10 @@ export default function GetAllDistributor() {
       }
     });
 
-    
     if (Object.keys(payload).length === 1) {
       toast.info("No changes detected");
       return;
     }
-
 
     try {
       setIsUpdating(true);
@@ -346,7 +339,6 @@ export default function GetAllDistributor() {
       setSelectedDistributor(null);
       fetchDistributors(selectedMD);
     } catch (error: any) {
-      console.error("Update error:", error);
       toast.error(error.response?.data?.message || "Update failed");
     } finally {
       setIsUpdating(false);
@@ -355,16 +347,16 @@ export default function GetAllDistributor() {
 
   const handleUpdateBlockStatus = async (blockStatus: boolean) => {
     if (!selectedDistributor?.distributor_id) {
-      toast.error("Invalid distributor selected")
-      return
+      toast.error("Invalid distributor selected");
+      return;
     }
   
-    const token = localStorage.getItem("authToken")
+    const token = localStorage.getItem("authToken");
   
     const payload = {
       distributor_id: selectedDistributor.distributor_id,
       block_status: blockStatus,
-    }
+    };
   
     try {
       await axios.put(
@@ -375,28 +367,28 @@ export default function GetAllDistributor() {
             Authorization: `Bearer ${token}`,
           },
         }
-      )
+      );
   
-      toast.success("Block status updated successfully")
+      toast.success("Block status updated successfully");
+      setEditDialogOpen(false);
+      fetchDistributors(selectedMD);
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.response?.data?.message || "Failed to update block status")
+      toast.error(error.response?.data?.message || "Failed to update block status");
     }
-  }
+  };
   
   const handleUpdateKYCStatus = async (kycStatus: boolean) => {
     if (!selectedDistributor?.distributor_id) {
-      toast.error("Invalid distributor selected")
-      return
+      toast.error("Invalid distributor selected");
+      return;
     }
   
-  
-    const token = localStorage.getItem("authToken")
+    const token = localStorage.getItem("authToken");
   
     const payload = {
       distributor_id: selectedDistributor.distributor_id,
       kyc_status: kycStatus,
-    }
+    };
   
     try {
       await axios.put(
@@ -407,14 +399,92 @@ export default function GetAllDistributor() {
             Authorization: `Bearer ${token}`,
           },
         }
-      )
+      );
   
-      toast.success("KYC status updated successfully")
+      toast.success("KYC status updated successfully");
+      setEditDialogOpen(false);
+      fetchDistributors(selectedMD);
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.response?.data?.message || "Failed to update KYC status")
+      toast.error(error.response?.data?.message || "Failed to update KYC status");
     }
-  }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      if (distributors.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const selectedMDInfo = masterDistributors.find(md => md.master_distributor_id === selectedMD);
+
+      const data = distributors.map((dist, index) => ({
+        "S.No": index + 1,
+        "Distributor ID": dist.distributor_id,
+        "Master Distributor ID": dist.master_distributor_id,
+        "MD Name": selectedMDInfo?.master_distributor_name || "N/A",
+        "Name": dist.distributor_name,
+        "Email": dist.distributor_email,
+        "Phone": dist.distributor_phone,
+        "Business Name": dist.business_name || "N/A",
+        "Business Type": dist.business_type || "N/A",
+        "GST Number": dist.gst_number || "N/A",
+        "Aadhar Number": dist.aadhar_number,
+        "PAN Number": dist.pan_number,
+        "Date of Birth": formatDate(dist.date_of_birth),
+        "Gender": dist.gender,
+        "Address": dist.address || "N/A",
+        "City": dist.city || "N/A",
+        "State": dist.state || "N/A",
+        "Pincode": dist.pincode || "N/A",
+        "Wallet Balance (₹)": dist.wallet_balance?.toFixed(2) || "0.00",
+        "KYC Status": dist.kyc_status ? "Verified" : "Pending",
+        "Account Status": dist.is_blocked ? "Blocked" : "Active",
+        "Created At": formatDate(dist.created_at),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 6 },  // S.No
+        { wch: 25 }, // Distributor ID
+        { wch: 25 }, // MD ID
+        { wch: 25 }, // MD Name
+        { wch: 25 }, // Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 25 }, // Business Name
+        { wch: 20 }, // Business Type
+        { wch: 18 }, // GST Number
+        { wch: 15 }, // Aadhar
+        { wch: 12 }, // PAN
+        { wch: 15 }, // DOB
+        { wch: 10 }, // Gender
+        { wch: 40 }, // Address
+        { wch: 15 }, // City
+        { wch: 15 }, // State
+        { wch: 10 }, // Pincode
+        { wch: 18 }, // Wallet Balance
+        { wch: 15 }, // KYC Status
+        { wch: 15 }, // Account Status
+        { wch: 20 }, // Created At
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Distributors");
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const mdName = selectedMDInfo?.master_distributor_name?.replace(/[^a-zA-Z0-9]/g, '_') || 'MD';
+      const filename = `Distributors_${mdName}_${timestamp}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      toast.success(`Exported ${distributors.length} distributors successfully`);
+    } catch (error) {
+      toast.error("Failed to export data");
+    }
+  };
 
   const getStatusBadge = (isBlocked: boolean) => {
     if (isBlocked) {
@@ -448,15 +518,26 @@ export default function GetAllDistributor() {
             Manage and view all distributors
           </p>
         </div>
-        <Button 
-          onClick={() => selectedMD && fetchDistributors(selectedMD)} 
-          variant="outline" 
-          size="sm"
-          disabled={!selectedMD}
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={exportToExcel}
+            variant="outline"
+            size="sm"
+            disabled={distributors.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button 
+            onClick={() => selectedMD && fetchDistributors(selectedMD)} 
+            variant="outline" 
+            size="sm"
+            disabled={!selectedMD}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Master Distributor Selection Card */}
@@ -524,6 +605,7 @@ export default function GetAllDistributor() {
                       <TableHead className="text-center font-semibold">Phone</TableHead>
                       <TableHead className="text-center font-semibold">Business</TableHead>
                       <TableHead className="text-center font-semibold">Wallet Balance</TableHead>
+                      <TableHead className="text-center font-semibold">KYC Status</TableHead>
                       <TableHead className="text-center font-semibold">Status</TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
                     </TableRow>
@@ -550,6 +632,17 @@ export default function GetAllDistributor() {
                             ₹{d.wallet_balance?.toLocaleString("en-IN") || "0"}
                           </TableCell>
                           <TableCell className="text-center">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                d.kyc_status
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                              }`}
+                            >
+                              {d.kyc_status ? "Verified" : "Pending"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
                             {getStatusBadge(d.is_blocked)}
                           </TableCell>
                           <TableCell className="text-center">
@@ -567,7 +660,7 @@ export default function GetAllDistributor() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-20 text-gray-600">
+                        <TableCell colSpan={11} className="text-center py-20 text-gray-600">
                           No distributors found for the selected master distributor
                         </TableCell>
                       </TableRow>
@@ -593,17 +686,29 @@ export default function GetAllDistributor() {
                       Previous
                     </Button>
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setCurrentPage(page)}
-                          className="w-10"
-                        >
-                          {page}
-                        </Button>
-                      ))}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-10"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
                     </div>
                     <Button
                       variant="outline"
@@ -621,7 +726,7 @@ export default function GetAllDistributor() {
         </CardContent>
       </Card>
 
-      {/* Loading Overlay - Shows BEFORE dialog opens */}
+      {/* Loading Overlay */}
       {isFetchingProfile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-3 shadow-xl">
@@ -875,85 +980,78 @@ export default function GetAllDistributor() {
                   </div>
                 </div>
 
-                {/* Status Section */}
+                {/* Account Status Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 pb-3 border-b">
                     <h3 className="font-semibold text-lg">Account Status</h3>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <Select
-                      value={editFormData.is_blocked ? "blocked" : "active"}
-                      onValueChange={(value) =>{
-                        setEditFormData({
-                          ...editFormData,
-                          is_blocked: value === "blocked",
-                        })
-                        handleUpdateBlockStatus(value === "blocked")
-                      }
-                      }
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span>Active</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="blocked">
-                          <div className="flex items-center gap-2">
-                            <Ban className="h-4 w-4 text-red-600" />
-                            <span>Blocked</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-block-status">Block Status</Label>
+                      <Select
+                        value={editFormData.is_blocked ? "blocked" : "active"}
+                        onValueChange={(value) => {
+                          setEditFormData({
+                            ...editFormData,
+                            is_blocked: value === "blocked",
+                          });
+                          handleUpdateBlockStatus(value === "blocked");
+                        }}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Active</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="blocked">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-red-600" />
+                              <span>Blocked</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-kyc-status">KYC Status</Label>
+                      <Select
+                        value={editFormData.kyc_status ? "verified" : "pending"}
+                        onValueChange={(value) => {
+                          setEditFormData({
+                            ...editFormData,
+                            kyc_status: value === "verified",
+                          });
+                          handleUpdateKYCStatus(value === "verified");
+                        }}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="verified">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Verified</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="pending">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-yellow-600" />
+                              <span>Pending</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <h3 className="font-semibold text-lg">KYC Status</h3>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
-                    <Select
-                      value={editFormData.kyc_status ? "blocked" : "active"}
-                      onValueChange={(value) =>{
-                        setEditFormData({
-                          ...editFormData,
-                          kyc_status: value === "blocked",
-                        })
-                        handleUpdateKYCStatus(value === "blocked")
-                      }
-                      }
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span>Active</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="blocked">
-                          <div className="flex items-center gap-2">
-                            <Ban className="h-4 w-4 text-red-600" />
-                            <span>Blocked</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
               </div>
             )
           )}

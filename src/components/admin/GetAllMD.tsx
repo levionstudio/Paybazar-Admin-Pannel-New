@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -27,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Edit, RefreshCw, User, Building, MapPin, CheckCircle, Ban } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, Building, MapPin, CheckCircle, Ban, Download } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 
@@ -149,7 +150,6 @@ export default function GetAllMD() {
         setMasterDistributors([]);
       }
     } catch (error: any) {
-      console.error("Error fetching master distributors:", error);
       toast.error(
         error.response?.data?.message || "Failed to load master distributors"
       );
@@ -170,196 +170,257 @@ export default function GetAllMD() {
     }
   }, [adminId]);
 
-const handleEditClick = async (md: MasterDistributor) => {
-  setEditDialogOpen(true);
-  setIsFetchingProfile(true);
+  const handleEditClick = async (md: MasterDistributor) => {
+    setEditDialogOpen(true);
+    setIsFetchingProfile(true);
 
-  try {
-    const token = localStorage.getItem("authToken");
-    const url = `${import.meta.env.VITE_API_BASE_URL}/md/get/md/${md.master_distributor_id}`;
+    try {
+      const token = localStorage.getItem("authToken");
+      const url = `${import.meta.env.VITE_API_BASE_URL}/md/get/md/${md.master_distributor_id}`;
 
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    console.log("MD PROFILE RESPONSE:", response.data);
+      const mdData =
+        response.data?.data?.master_distributor || response.data?.data;
 
-    const mdData =
-      response.data?.data?.master_distributor || response.data?.data;
+      if (!mdData) {
+        toast.error("Invalid profile data");
+        return;
+      }
 
-    if (!mdData) {
-      toast.error("Invalid profile data");
+      setSelectedMD(mdData);
+
+      setEditFormData({
+        master_distributor_name: mdData.master_distributor_name ?? "",
+        master_distributor_phone: mdData.master_distributor_phone ?? "",
+        city: mdData.city ?? "",
+        state: mdData.state ?? "",
+        address: mdData.address ?? "",
+        pincode: mdData.pincode ?? "",
+        business_name: mdData.business_name ?? "",
+        business_type: mdData.business_type ?? "",
+        gst_number: mdData.gst_number ?? "",
+        kyc_status: Boolean(mdData.kyc_status),
+        is_blocked: Boolean(mdData.is_blocked),
+        wallet_balance: Number(mdData.wallet_balance ?? 0),
+      });
+
+      toast.success("Profile loaded");
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Failed to load profile"
+      );
+    } finally {
+      setIsFetchingProfile(false);
+    }
+  };
+
+  const handleUpdateMD = async () => {
+    if (!selectedMD?.master_distributor_id) {
+      toast.error("Invalid distributor selected");
       return;
     }
 
-    setSelectedMD(mdData); // ✅ set ONCE
+    if (!editFormData.master_distributor_name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
 
-    setEditFormData({
-      master_distributor_name: mdData.master_distributor_name ?? "",
-      master_distributor_phone: mdData.master_distributor_phone ?? "",
-      city: mdData.city ?? "",
-      state: mdData.state ?? "",
-      address: mdData.address ?? "",
-      pincode: mdData.pincode ?? "",
-      business_name: mdData.business_name ?? "",
-      business_type: mdData.business_type ?? "",
-      gst_number: mdData.gst_number ?? "",
-      kyc_status: Boolean(mdData.kyc_status),
-      is_blocked: Boolean(mdData.is_blocked),
-      wallet_balance: Number(mdData.wallet_balance ?? 0),
+    if (!/^[1-9]\d{9}$/.test(editFormData.master_distributor_phone)) {
+      toast.error("Invalid phone number");
+      return;
+    }
+
+    const token = localStorage.getItem("authToken");
+    const url = `${import.meta.env.VITE_API_BASE_URL}/md/update/details`;
+
+    const payload: any = {
+      master_distributor_id: selectedMD.master_distributor_id,
+    };
+
+    const allowedKeys = [
+      "master_distributor_name",
+      "master_distributor_phone",
+      "city",
+      "state",
+      "address",
+      "pincode",
+      "business_name",
+      "business_type",
+      "gst_number",
+    ];
+
+    allowedKeys.forEach((key) => {
+      if ((editFormData as any)[key] !== (selectedMD as any)[key]) {
+        payload[key] = (editFormData as any)[key];
+      }
     });
 
-    toast.success("Profile loaded");
-  } catch (error: any) {
-    console.error("Fetch error:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to load profile"
-    );
-  } finally {
-    setIsFetchingProfile(false);
-  }
-};
+    if (Object.keys(payload).length === 1) {
+      toast.info("No changes detected");
+      return;
+    }
 
-const handleUpdateMD = async () => {
-  if (!selectedMD?.master_distributor_id) {
-    toast.error("Invalid distributor selected");
-    return;
-  }
+    try {
+      setIsUpdating(true);
 
-  if (!editFormData.master_distributor_name.trim()) {
-    toast.error("Name is required");
-    return;
-  }
-
-  if (!/^[1-9]\d{9}$/.test(editFormData.master_distributor_phone)) {
-    toast.error("Invalid phone number");
-    return;
-  }
-
-  const token = localStorage.getItem("authToken");
-  const url = `${import.meta.env.VITE_API_BASE_URL}/md/update/details`;
-
-const payload: any = {
-  master_distributor_id: selectedMD.master_distributor_id,
-};
-
-
- const allowedKeys = [
-  "master_distributor_name",
-  "master_distributor_phone",
-  "city",
-  "state",
-  "address",
-  "pincode",
-  "business_name",
-  "business_type",
-  "gst_number",
-];
-
-allowedKeys.forEach((key) => {
-  if ((editFormData as any)[key] !== (selectedMD as any)[key]) {
-    payload[key] = (editFormData as any)[key];
-  }
-});
-
-  if (Object.keys(payload).length === 0) {
-    toast.info("No changes detected");
-    return;
-  }
-
-  try {
-    setIsUpdating(true);
-
-    await axios.put(url, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    toast.success("Master Distributor updated");
-
-    setEditDialogOpen(false);
-    setSelectedMD(null);
-    fetchMasterDistributors();
-  } catch (error: any) {
-    console.error("Update error:", error);
-    toast.error(
-      error.response?.data?.message || "Update failed"
-    );
-  } finally {
-    setIsUpdating(false);
-  }
-};
-
-const handleUpdateBlockStatus = async (blockStatus: boolean) => {
-  if (!selectedMD?.master_distributor_id) {
-    toast.error("Invalid distributor selected")
-    return
-  }
-
-  const token = localStorage.getItem("authToken")
-
-  const payload = {
-    master_distributor_id: selectedMD.master_distributor_id,
-    block_status: blockStatus,
-  }
-
-  try {
-    await axios.put(
-      `${import.meta.env.VITE_API_BASE_URL}/md/update/block`,
-      payload,
-      {
+      await axios.put(url, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+      });
+
+      toast.success("Master Distributor updated");
+
+      setEditDialogOpen(false);
+      setSelectedMD(null);
+      fetchMasterDistributors();
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Update failed"
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateBlockStatus = async (blockStatus: boolean) => {
+    if (!selectedMD?.master_distributor_id) {
+      toast.error("Invalid distributor selected");
+      return;
+    }
+
+    const token = localStorage.getItem("authToken");
+
+    const payload = {
+      master_distributor_id: selectedMD.master_distributor_id,
+      block_status: blockStatus,
+    };
+
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/md/update/block`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("Block status updated successfully");
+      setEditDialogOpen(false);
+      fetchMasterDistributors();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update block status");
+    }
+  };
+
+  const handleUpdateKYCStatus = async (kycStatus: boolean) => {
+    if (!selectedMD?.master_distributor_id) {
+      toast.error("Invalid distributor selected");
+      return;
+    }
+
+    const token = localStorage.getItem("authToken");
+
+    const payload = {
+      master_distributor_id: selectedMD.master_distributor_id,
+      kyc_status: kycStatus,
+    };
+
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/md/update/kyc`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("KYC status updated successfully");
+      setEditDialogOpen(false);
+      fetchMasterDistributors();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update KYC status");
+    }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      if (masterDistributors.length === 0) {
+        toast.error("No data to export");
+        return;
       }
-    )
 
-    toast.success("Block status updated successfully")
-    fetchMasterDistributors()
-  } catch (error: any) {
-    console.error(error)
-    toast.error(error.response?.data?.message || "Failed to update block status")
-  }
-}
+      const data = masterDistributors.map((md, index) => ({
+        "S.No": index + 1,
+        "MD ID": md.master_distributor_id,
+        "Name": md.master_distributor_name,
+        "Email": md.master_distributor_email,
+        "Phone": md.master_distributor_phone,
+        "Business Name": md.business_name || "N/A",
+        "Business Type": md.business_type || "N/A",
+        "GST Number": md.gst_number || "N/A",
+        "Aadhar Number": md.aadhar_number,
+        "PAN Number": md.pan_number,
+        "Date of Birth": formatDate(md.date_of_birth),
+        "Gender": md.gender,
+        "Address": md.address || "N/A",
+        "City": md.city || "N/A",
+        "State": md.state || "N/A",
+        "Pincode": md.pincode || "N/A",
+        "Wallet Balance (₹)": md.wallet_balance?.toFixed(2) || "0.00",
+        "KYC Status": md.kyc_status ? "Verified" : "Pending",
+        "Account Status": md.is_blocked ? "Blocked" : "Active",
+        "Created At": formatDate(md.created_at),
+      }));
 
-const handleUpdateKYCStatus = async (kycStatus: boolean) => {
-  if (!selectedMD?.master_distributor_id) {
-    toast.error("Invalid distributor selected")
-    return
-  }
+      const ws = XLSX.utils.json_to_sheet(data);
 
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 6 },  // S.No
+        { wch: 25 }, // MD ID
+        { wch: 25 }, // Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 25 }, // Business Name
+        { wch: 20 }, // Business Type
+        { wch: 18 }, // GST Number
+        { wch: 15 }, // Aadhar
+        { wch: 12 }, // PAN
+        { wch: 15 }, // DOB
+        { wch: 10 }, // Gender
+        { wch: 40 }, // Address
+        { wch: 15 }, // City
+        { wch: 15 }, // State
+        { wch: 10 }, // Pincode
+        { wch: 18 }, // Wallet Balance
+        { wch: 15 }, // KYC Status
+        { wch: 15 }, // Account Status
+        { wch: 20 }, // Created At
+      ];
 
-  const token = localStorage.getItem("authToken")
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Master Distributors");
 
-  const payload = {
-    master_distributor_id: selectedMD.master_distributor_id,
-    kyc_status: kycStatus,
-  }
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `Master_Distributors_${timestamp}.xlsx`;
 
-  try {
-    await axios.put(
-      `${import.meta.env.VITE_API_BASE_URL}/md/update/kyc`,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
-
-    toast.success("KYC status updated successfully")
-    fetchMasterDistributors()
-  } catch (error: any) {
-    console.error(error)
-    toast.error(error.response?.data?.message || "Failed to update KYC status")
-  }
-}
-
-
-
+      XLSX.writeFile(wb, filename);
+      toast.success(`Exported ${masterDistributors.length} master distributors successfully`);
+    } catch (error) {
+      toast.error("Failed to export data");
+    }
+  };
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -408,10 +469,21 @@ const handleUpdateKYCStatus = async (kycStatus: boolean) => {
             Manage and view all master distributors
           </p>
         </div>
-        <Button onClick={fetchMasterDistributors} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={exportToExcel}
+            variant="outline"
+            size="sm"
+            disabled={masterDistributors.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={fetchMasterDistributors} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* MD Table */}
@@ -495,7 +567,7 @@ const handleUpdateKYCStatus = async (kycStatus: boolean) => {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={10}
                       className="text-center py-6 text-muted-foreground"
                     >
                       No master distributors found
@@ -525,19 +597,29 @@ const handleUpdateKYCStatus = async (kycStatus: boolean) => {
                 Previous
               </Button>
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
                     <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setCurrentPage(page)}
+                      onClick={() => setCurrentPage(pageNum)}
                       className="w-10"
                     >
-                      {page}
+                      {pageNum}
                     </Button>
-                  )
-                )}
+                  );
+                })}
               </div>
               <Button
                 variant="outline"
@@ -835,80 +917,79 @@ const handleUpdateKYCStatus = async (kycStatus: boolean) => {
                     </div>
                   </div>
                 </div>
-                    <div className="space-y-4">
+
+                {/* Account Status Section */}
+                <div className="space-y-4">
                   <div className="flex items-center gap-3 pb-3 border-b">
                     <h3 className="font-semibold text-lg">Account Status</h3>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">Blocked Status</Label>
-                    <Select
-                      value={editFormData.is_blocked ? "blocked" : "active"}
-                      onValueChange={(value) =>{
-                        setEditFormData({
-                          ...editFormData,
-                          is_blocked: value === "blocked",
-                        })
-                        handleUpdateBlockStatus(value === "blocked")
-                      }
-                      }
-                      
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span>Active</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="blocked">
-                          <div className="flex items-center gap-2">
-                            <Ban className="h-4 w-4 text-red-600" />
-                            <span>Block</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-block-status">Block Status</Label>
+                      <Select
+                        value={editFormData.is_blocked ? "blocked" : "active"}
+                        onValueChange={(value) => {
+                          setEditFormData({
+                            ...editFormData,
+                            is_blocked: value === "blocked",
+                          });
+                          handleUpdateBlockStatus(value === "blocked");
+                        }}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Active</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="blocked">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-red-600" />
+                              <span>Blocked</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">KYC Status</Label>
-                    <Select
-                      value={editFormData.kyc_status ? "blocked" : "active"}
-                      onValueChange={(value) =>{
-                        setEditFormData({
-                          ...editFormData,
-                          kyc_status: value === "blocked",
-                        })
-                        handleUpdateKYCStatus(value === "blocked")
-                      }}
-                      
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span>Active</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="blocked">
-                          <div className="flex items-center gap-2">
-                            <Ban className="h-4 w-4 text-red-600" />
-                            <span>Block</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-kyc-status">KYC Status</Label>
+                      <Select
+                        value={editFormData.kyc_status ? "verified" : "pending"}
+                        onValueChange={(value) => {
+                          setEditFormData({
+                            ...editFormData,
+                            kyc_status: value === "verified",
+                          });
+                          handleUpdateKYCStatus(value === "verified");
+                        }}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="verified">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span>Verified</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="pending">
+                            <div className="flex items-center gap-2">
+                              <Ban className="h-4 w-4 text-yellow-600" />
+                              <span>Pending</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-              
               </div>
             )
           )}
