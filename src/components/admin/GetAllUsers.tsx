@@ -104,24 +104,25 @@ export default function GetAllRetailers() {
   const [loadingDistributors, setLoadingDistributors] = useState(true);
   const [loadingRetailers, setLoadingRetailers] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
-const [editFormData, setEditFormData] = useState<EditFormData>({
-  retailer_id: "",
-  retailer_name: "",
-  retailer_phone: "",
-  city: "",
-  state: "",
-  address: "",
-  pincode: "",
-  business_name: "",
-  business_type: "",
-  gst_number: "",
-  is_blocked: false,
-  kyc_status: false,
-});
+  const [editFormData, setEditFormData] = useState<EditFormData>({
+    retailer_id: "",
+    retailer_name: "",
+    retailer_phone: "",
+    city: "",
+    state: "",
+    address: "",
+    pincode: "",
+    business_name: "",
+    business_type: "",
+    gst_number: "",
+    is_blocked: false,
+    kyc_status: false,
+  });
 
   const itemsPerPage = 10;
 
@@ -178,10 +179,11 @@ const [editFormData, setEditFormData] = useState<EditFormData>({
     fetchDistributors();
   }, []);
 
-  // Fetch retailers when distributor is selected
-  const fetchRetailers = async (distributorId: string) => {
+  // Fetch retailers with pagination
+  const fetchRetailers = async (distributorId: string, page: number = 1) => {
     if (!distributorId) {
       setRetailers([]);
+      setTotalCount(0);
       return;
     }
 
@@ -189,8 +191,48 @@ const [editFormData, setEditFormData] = useState<EditFormData>({
     if (!token) return;
 
     setLoadingRetailers(true);
-    setRetailers([]);
     
+    try {
+      const offset = (page - 1) * itemsPerPage;
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          params: {
+            limit: itemsPerPage,
+            offset: offset,
+          },
+        }
+      );
+
+      if (res.data?.status === "success" && res.data?.data) {
+        const list = res.data.data.retailers || [];
+        const count = res.data.data.total_count || res.data.data.count || list.length;
+        
+        setRetailers(list);
+        setTotalCount(count);
+      } else {
+        toast.error("Failed to load retailers");
+        setRetailers([]);
+        setTotalCount(0);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to load retailers");
+      setRetailers([]);
+      setTotalCount(0);
+    } finally {
+      setLoadingRetailers(false);
+    }
+  };
+
+  // Fetch all retailers for export (without pagination)
+  const fetchAllRetailersForExport = async (distributorId: string): Promise<Retailer[]> => {
+    const token = getAuthToken();
+    if (!token) return [];
+
     try {
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
@@ -199,27 +241,33 @@ const [editFormData, setEditFormData] = useState<EditFormData>({
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          params: {
+            limit: 10000, // Large number to get all records
+            offset: 0,
+          },
         }
       );
 
       if (res.data?.status === "success" && res.data?.data) {
-        const list = res.data.data.retailers || [];
-        setRetailers(list);
-        setCurrentPage(1);
-      } else {
-        toast.error("Failed to load retailers");
+        return res.data.data.retailers || [];
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to load retailers");
-    } finally {
-      setLoadingRetailers(false);
+      return [];
+    } catch (error) {
+      console.error("Error fetching all retailers:", error);
+      return [];
     }
   };
 
+  // Fetch retailers when distributor changes or page changes
   useEffect(() => {
     if (selectedDistributor) {
-      fetchRetailers(selectedDistributor);
+      fetchRetailers(selectedDistributor, currentPage);
     }
+  }, [selectedDistributor, currentPage]);
+
+  // Reset to page 1 when distributor changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [selectedDistributor]);
 
   const handleEditClick = async (retailer: Retailer) => {
@@ -343,94 +391,105 @@ const [editFormData, setEditFormData] = useState<EditFormData>({
       setEditDialogOpen(false);
       setSelectedRetailer(null);
       
-      fetchRetailers(selectedDistributor);
+      fetchRetailers(selectedDistributor, currentPage);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Update failed");
     } finally {
       setIsUpdating(false);
     }
   };
-const handleUpdateRetailerBlockStatus = async (blockStatus: boolean) => {
-  if (!selectedRetailer?.retailer_id) {
-    toast.error("Invalid retailer selected");
-    return;
-  }
 
-  const token = getAuthToken();
-  if (!token) return;
+  const handleUpdateRetailerBlockStatus = async (blockStatus: boolean) => {
+    if (!selectedRetailer?.retailer_id) {
+      toast.error("Invalid retailer selected");
+      return;
+    }
 
-  try {
-    await axios.put(
-      `${import.meta.env.VITE_API_BASE_URL}/retailer/update/block`,
-      {
-        retailer_id: selectedRetailer.retailer_id,
-        block_status: blockStatus,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const token = getAuthToken();
+    if (!token) return;
 
-    toast.success("Retailer block status updated");
-
-    // Update UI instantly
-    setEditFormData((prev) => ({
-      ...prev,
-      is_blocked: blockStatus,
-    }));
-
-    fetchRetailers(selectedDistributor);
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || "Failed to update block status");
-  }
-};
-const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
-  if (!selectedRetailer?.retailer_id) {
-    toast.error("Invalid retailer selected");
-    return;
-  }
-
-  const token = getAuthToken();
-  if (!token) return;
-
-  try {
-    await axios.put(
-      `${import.meta.env.VITE_API_BASE_URL}/retailer/update/kyc`,
-      {
-        retailer_id: selectedRetailer.retailer_id,
-        kyc_status: kycStatus,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    toast.success("Retailer KYC status updated");
-
-    setEditFormData((prev) => ({
-      ...prev,
-      kyc_status: kycStatus,
-    }));
-
-    fetchRetailers(selectedDistributor);
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || "Failed to update KYC status");
-  }
-};
-
-  // Export to Excel
-  const exportToExcel = () => {
     try {
-      if (retailers.length === 0) {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/retailer/update/block`,
+        {
+          retailer_id: selectedRetailer.retailer_id,
+          block_status: blockStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("Retailer block status updated");
+
+      // Update UI instantly
+      setEditFormData((prev) => ({
+        ...prev,
+        is_blocked: blockStatus,
+      }));
+
+      fetchRetailers(selectedDistributor, currentPage);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update block status");
+    }
+  };
+
+  const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
+    if (!selectedRetailer?.retailer_id) {
+      toast.error("Invalid retailer selected");
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/retailer/update/kyc`,
+        {
+          retailer_id: selectedRetailer.retailer_id,
+          kyc_status: kycStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("Retailer KYC status updated");
+
+      setEditFormData((prev) => ({
+        ...prev,
+        kyc_status: kycStatus,
+      }));
+
+      fetchRetailers(selectedDistributor, currentPage);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update KYC status");
+    }
+  };
+
+  // Export to Excel - fetches all data
+  const exportToExcel = async () => {
+    try {
+      if (!selectedDistributor) {
+        toast.error("Please select a distributor");
+        return;
+      }
+
+      toast.info("Fetching all data for export...");
+      
+      const allRetailers = await fetchAllRetailersForExport(selectedDistributor);
+      
+      if (allRetailers.length === 0) {
         toast.error("No data to export");
         return;
       }
 
-      const data = retailers.map((r, index) => ({
+      const data = allRetailers.map((r, index) => ({
         "S.No": index + 1,
         "Distributor ID": r.distributor_id,
         "Retailer ID": r.retailer_id,
@@ -486,10 +545,10 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
 
       const distName = distributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name || selectedDistributor;
       const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = `Retailers_${distName.replace(/\s+/g, '_')}_${timestamp}.xlsx`;
+      const filename = `Retailers_${distName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.xlsx`;
 
       XLSX.writeFile(wb, filename);
-      toast.success(`Exported ${retailers.length} retailers successfully`);
+      toast.success(`Exported ${allRetailers.length} retailers successfully`);
     } catch (error) {
       toast.error("Failed to export data");
     }
@@ -520,9 +579,8 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
     });
   };
 
-  const totalPages = Math.max(1, Math.ceil(retailers.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentRetailers = retailers.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -531,7 +589,7 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Retailers</h1>
           <p className="text-gray-600 mt-1">
-            Manage and view all retailers
+            Manage and view all retailers {totalCount > 0 && `(${totalCount} total)`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -539,13 +597,13 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
             onClick={exportToExcel}
             variant="outline"
             size="sm"
-            disabled={retailers.length === 0 || !selectedDistributor}
+            disabled={!selectedDistributor || totalCount === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export
+            Export All
           </Button>
           <Button 
-            onClick={() => selectedDistributor && fetchRetailers(selectedDistributor)} 
+            onClick={() => selectedDistributor && fetchRetailers(selectedDistributor, currentPage)} 
             variant="outline" 
             size="sm"
             disabled={!selectedDistributor}
@@ -628,8 +686,8 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
                   </TableHeader>
 
                   <TableBody>
-                    {currentRetailers.length > 0 ? (
-                      currentRetailers.map((r, idx) => (
+                    {retailers.length > 0 ? (
+                      retailers.map((r, idx) => (
                         <TableRow key={r.retailer_id} className="hover:bg-gray-50">
                           <TableCell className="text-center">{startIndex + idx + 1}</TableCell>
                           <TableCell className="text-center font-mono text-xs">
@@ -678,11 +736,11 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
               </div>
 
               {/* Pagination */}
-              {retailers.length > itemsPerPage && (
+              {totalCount > itemsPerPage && (
                 <div className="flex items-center justify-between border-t px-6 py-4">
                   <p className="text-sm text-gray-600">
-                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, retailers.length)} of{" "}
-                    {retailers.length} retailers
+                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalCount)} of{" "}
+                    {totalCount} retailers
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -996,7 +1054,8 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
                     </div>
                   </div>
                 </div>
-                  {/* Account Status Section */}
+
+                {/* Account Status Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 pb-3 border-b">
                     <h3 className="font-semibold text-lg">Account Status</h3>
@@ -1005,13 +1064,12 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit-block-status">Block Status</Label>
-                <Select
-  value={editFormData.is_blocked ? "blocked" : "active"}
-  onValueChange={(value) =>
-    handleUpdateRetailerBlockStatus(value === "blocked")
-  }
->
-
+                      <Select
+                        value={editFormData.is_blocked ? "blocked" : "active"}
+                        onValueChange={(value) =>
+                          handleUpdateRetailerBlockStatus(value === "blocked")
+                        }
+                      >
                         <SelectTrigger className="h-11">
                           <SelectValue />
                         </SelectTrigger>
@@ -1034,13 +1092,12 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-kyc-status">KYC Status</Label>
-                   <Select
-                    value={editFormData.kyc_status ? "verified" : "pending"}
-                    onValueChange={(value) =>
-                      handleUpdateRetailerKYCStatus(value === "verified")
-                    }
-                  >
-
+                      <Select
+                        value={editFormData.kyc_status ? "verified" : "pending"}
+                        onValueChange={(value) =>
+                          handleUpdateRetailerKYCStatus(value === "verified")
+                        }
+                      >
                         <SelectTrigger className="h-11">
                           <SelectValue />
                         </SelectTrigger>

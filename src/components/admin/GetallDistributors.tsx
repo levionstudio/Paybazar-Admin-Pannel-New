@@ -77,7 +77,6 @@ interface EditFormData {
   kyc_status: boolean;
 }
 
-/* -------------------- AUTH HELPER -------------------- */
 function getAuthToken(): string | null {
   const token = localStorage.getItem("authToken");
   if (!token) return null;

@@ -114,7 +114,7 @@ const CreateRetailerPage = () => {
     return { label: "Strong", score: 3 }
   }
 
-  // Fetch all distributors on mount
+  // Fetch all distributors on mount (without pagination)
   useEffect(() => {
     const fetchDistributors = async () => {
       console.log("🔄 Fetching distributors...");
@@ -159,6 +159,11 @@ const CreateRetailerPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          params: {
+            // Fetch all distributors without pagination
+            limit: 10000,
+            offset: 0,
+          },
         });
 
         console.log("📥 Distributor Response:", res.data);
@@ -166,6 +171,7 @@ const CreateRetailerPage = () => {
         if (res.data.status === "success" && res.data.data) {
           let distributorList = res.data.data.distributors || [];
           console.log("📋 Raw distributor list:", distributorList);
+          console.log("📊 Total distributors fetched:", distributorList.length);
           
           // Map to correct structure matching Go backend
           distributorList = distributorList.map((d: any) => ({
@@ -178,6 +184,7 @@ const CreateRetailerPage = () => {
           
           distributorList = distributorList.filter((d: any) => d.distributor_id);
           console.log("✅ Mapped distributors:", distributorList);
+          console.log("✅ Final distributor count:", distributorList.length);
           
           setDistributors(distributorList);
           
@@ -372,7 +379,9 @@ const CreateRetailerPage = () => {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Distributor Assignment</h2>
-                  <p className="text-sm text-gray-600">Select the distributor</p>
+                  <p className="text-sm text-gray-600">
+                    Select the distributor {distributors.length > 0 && `(${distributors.length} available)`}
+                  </p>
                 </div>
               </div>
 
@@ -413,7 +422,7 @@ const CreateRetailerPage = () => {
                         </div>
                       ) : (
                         distributors.map((d, index) => {
-                          const displayName = d.distributor_id || d.distributor_email || `Distributor-${index + 1}`;
+                          const displayName = d.distributor_name || d.distributor_id || d.distributor_email || `Distributor-${index + 1}`;
                           const businessInfo = d.business_name ? ` - ${d.business_name}` : '';
                           const displayText = `${displayName}${businessInfo}`;
                           
@@ -435,9 +444,9 @@ const CreateRetailerPage = () => {
                     {errors.distributor_id.message}
                   </p>
                 )}
-                {!selectedDistributorId && !loadingDistributors && (
-                  <p className="text-sm text-red-600">
-                    Please select a distributor
+                {!selectedDistributorId && !loadingDistributors && distributors.length > 0 && (
+                  <p className="text-sm text-amber-600">
+                    Please select a distributor from the {distributors.length} available option{distributors.length !== 1 ? 's' : ''}
                   </p>
                 )}
               </div>
