@@ -28,7 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Edit, RefreshCw, User, Building, MapPin, CheckCircle, Ban, Download } from "lucide-react";
+import { 
+  Loader2, Edit, RefreshCw, User, Building, MapPin, 
+  CheckCircle, Ban, Download, ChevronsLeft, ChevronLeft, 
+  ChevronRight, ChevronsRight, Search, Filter, X 
+} from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 
@@ -98,11 +102,21 @@ export default function GetAllMD() {
   const [masterDistributors, setMasterDistributors] = useState<MasterDistributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedMD, setSelectedMD] = useState<MasterDistributor | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [adminId, setAdminId] = useState<string | null>(null);
+  
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [tempSearchQuery, setTempSearchQuery] = useState<string>("");
+  
   const [editFormData, setEditFormData] = useState<EditFormData>({
     master_distributor_name: "",
     master_distributor_phone: "",
@@ -117,7 +131,6 @@ export default function GetAllMD() {
     is_blocked: false,
     wallet_balance: 0,
   });
-  const itemsPerPage = 10;
 
   const fetchMasterDistributors = async () => {
     if (!adminId) {
@@ -128,8 +141,32 @@ export default function GetAllMD() {
     setLoading(true);
     try {
       const token = localStorage.getItem("authToken");
+      
+      // Calculate offset based on current page
+      const offset = (currentPage - 1) * itemsPerPage;
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        offset: offset.toString(),
+      });
+      
+      // Add optional filters
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
+      if (searchQuery) params.append("search", searchQuery);
+      
+      console.log("📥 Fetching MDs with params:", {
+        limit: itemsPerPage,
+        offset: offset,
+        start_date: startDate || 'none',
+        end_date: endDate || 'none',
+        search: searchQuery || 'none',
+        currentPage: currentPage,
+      });
+      
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -139,21 +176,35 @@ export default function GetAllMD() {
       );
 
       if (res.data.status === "success" && res.data.data) {
+        console.log("📦 Response data:", res.data.data);
+        
         const distributors = Array.isArray(res.data.data)
           ? res.data.data
           : res.data.data.master_distributors || [];
 
+        // Get total count from response (backend should provide this)
+        const total = res.data.data.total_count || res.data.data.total || distributors.length;
+        
+        console.log("📊 Loaded:", {
+          distributors: distributors.length,
+          total: total,
+          page: currentPage,
+        });
+
         setMasterDistributors(distributors);
-        setCurrentPage(1);
+        setTotalCount(total);
       } else {
         toast.error("Failed to load master distributors");
         setMasterDistributors([]);
+        setTotalCount(0);
       }
     } catch (error: any) {
+      console.error("❌ Fetch error:", error);
       toast.error(
         error.response?.data?.message || "Failed to load master distributors"
       );
       setMasterDistributors([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -168,7 +219,7 @@ export default function GetAllMD() {
     if (adminId) {
       fetchMasterDistributors();
     }
-  }, [adminId]);
+  }, [adminId, currentPage, itemsPerPage, startDate, endDate, searchQuery]);
 
   const handleEditClick = async (md: MasterDistributor) => {
     setEditDialogOpen(true);
@@ -385,28 +436,11 @@ export default function GetAllMD() {
 
       const ws = XLSX.utils.json_to_sheet(data);
 
-      // Set column widths
       ws["!cols"] = [
-        { wch: 6 },  // S.No
-        { wch: 25 }, // MD ID
-        { wch: 25 }, // Name
-        { wch: 30 }, // Email
-        { wch: 15 }, // Phone
-        { wch: 25 }, // Business Name
-        { wch: 20 }, // Business Type
-        { wch: 18 }, // GST Number
-        { wch: 15 }, // Aadhar
-        { wch: 12 }, // PAN
-        { wch: 15 }, // DOB
-        { wch: 10 }, // Gender
-        { wch: 40 }, // Address
-        { wch: 15 }, // City
-        { wch: 15 }, // State
-        { wch: 10 }, // Pincode
-        { wch: 18 }, // Wallet Balance
-        { wch: 15 }, // KYC Status
-        { wch: 15 }, // Account Status
-        { wch: 20 }, // Created At
+        { wch: 6 }, { wch: 25 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
+        { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 12 },
+        { wch: 15 }, { wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 15 },
+        { wch: 10 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
       ];
 
       const wb = XLSX.utils.book_new();
@@ -434,20 +468,70 @@ export default function GetAllMD() {
     });
   };
 
-  // Pagination calculations
-  const totalPages = Math.max(
-    1,
-    Math.ceil(masterDistributors.length / itemsPerPage)
-  );
+  // Pagination calculations (server-side)
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentMDs = masterDistributors.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
+  const endIndex = Math.min(startIndex + masterDistributors.length, totalCount);
 
+  // Handle items per page change
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
+  // Pagination handlers
+  const goToFirstPage = () => setCurrentPage(1);
+  const goToLastPage = () => setCurrentPage(totalPages);
   const handlePrevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
-  const handleNextPage = () =>
-    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+
+      if (currentPage > 3) {
+        pages.push("...");
+      }
+
+      const startPage = Math.max(2, currentPage - 1);
+      const endPage = Math.min(totalPages - 1, currentPage + 1);
+
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+
+      if (currentPage < totalPages - 2) {
+        pages.push("...");
+      }
+
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
+  // Handle search
+  const handleSearch = () => {
+    setSearchQuery(tempSearchQuery);
+    setCurrentPage(1);
+  };
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setSearchQuery("");
+    setTempSearchQuery("");
+    setCurrentPage(1);
+  };
 
   if (loading) {
     return (
@@ -466,10 +550,18 @@ export default function GetAllMD() {
             Master Distributors
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage and view all master distributors
+            Manage and view all master distributors ({totalCount} total)
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={() => setShowFilters(!showFilters)}
+            variant="outline"
+            size="sm"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+          </Button>
           <Button
             onClick={exportToExcel}
             variant="outline"
@@ -485,6 +577,69 @@ export default function GetAllMD() {
           </Button>
         </div>
       </div>
+
+      {/* Filters Section */}
+      {showFilters && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="space-y-2">
+                <Label>Search</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Name, Email, Phone..."
+                    value={tempSearchQuery}
+                    onChange={(e) => setTempSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                  <Button onClick={handleSearch} size="icon">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Start Date */}
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+
+              {/* End Date */}
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+
+              {/* Clear Filters */}
+              <div className="space-y-2 flex items-end">
+                <Button
+                  onClick={handleClearFilters}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* MD Table */}
       <Card>
@@ -506,8 +661,8 @@ export default function GetAllMD() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {currentMDs.length > 0 ? (
-                  currentMDs.map((md, index) => (
+                {masterDistributors.length > 0 ? (
+                  masterDistributors.map((md, index) => (
                     <TableRow key={md.master_distributor_id}>
                       <TableCell className="text-center">
                         {startIndex + index + 1}
@@ -579,55 +734,92 @@ export default function GetAllMD() {
           </div>
         </CardContent>
 
-        {/* Pagination Controls */}
-        {masterDistributors.length > itemsPerPage && (
-          <div className="flex items-center justify-between px-6 py-4 border-t">
+        {/* Enhanced Pagination Controls */}
+        {totalCount > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t">
+            {/* Items per page selector */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="items-per-page" className="text-sm text-muted-foreground whitespace-nowrap">
+                Rows per page:
+              </Label>
+              <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                <SelectTrigger id="items-per-page" className="h-9 w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Showing info */}
             <p className="text-sm text-muted-foreground">
-              Showing {startIndex + 1} to{" "}
-              {Math.min(startIndex + itemsPerPage, masterDistributors.length)}{" "}
-              of {masterDistributors.length} master distributors
+              Showing {startIndex + 1} to {endIndex} of {totalCount} entries
             </p>
-            <div className="flex gap-2">
+
+            {/* Pagination buttons */}
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
+                onClick={goToFirstPage}
+                disabled={currentPage === 1}
+                className="h-9 w-9"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={handlePrevPage}
                 disabled={currentPage === 1}
+                className="h-9 w-9"
               >
-                Previous
+                <ChevronLeft className="h-4 w-4" />
               </Button>
+
+              {/* Page numbers */}
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  return (
+                {getPageNumbers().map((pageNum, index) => (
+                  pageNum === "..." ? (
+                    <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">
+                      ...
+                    </span>
+                  ) : (
                     <Button
                       key={pageNum}
                       variant={currentPage === pageNum ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className="w-10"
+                      onClick={() => setCurrentPage(pageNum as number)}
+                      className="h-9 w-9"
                     >
                       {pageNum}
                     </Button>
-                  );
-                })}
+                  )
+                ))}
               </div>
+
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
+                className="h-9 w-9"
               >
-                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToLastPage}
+                disabled={currentPage === totalPages}
+                className="h-9 w-9"
+              >
+                <ChevronsRight className="h-4 w-4" />
               </Button>
             </div>
           </div>

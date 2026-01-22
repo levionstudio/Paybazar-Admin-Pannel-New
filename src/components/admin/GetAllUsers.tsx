@@ -1035,11 +1035,11 @@ const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
                     <div className="space-y-2">
                       <Label htmlFor="edit-kyc-status">KYC Status</Label>
                    <Select
-  value={editFormData.kyc_status ? "verified" : "pending"}
-  onValueChange={(value) =>
-    handleUpdateRetailerKYCStatus(value === "verified")
-  }
->
+                    value={editFormData.kyc_status ? "verified" : "pending"}
+                    onValueChange={(value) =>
+                      handleUpdateRetailerKYCStatus(value === "verified")
+                    }
+                  >
 
                         <SelectTrigger className="h-11">
                           <SelectValue />

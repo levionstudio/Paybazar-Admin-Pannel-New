@@ -101,6 +101,7 @@ export default function GetAllDistributor() {
   const [loadingMDs, setLoadingMDs] = useState(true);
   const [loadingDistributors, setLoadingDistributors] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedDistributor, setSelectedDistributor] = useState<Distributor | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -173,10 +174,11 @@ export default function GetAllDistributor() {
     fetchMasterDistributors();
   }, []);
 
-  // Fetch distributors when MD is selected
-  const fetchDistributors = async (mdId: string) => {
+  // Fetch distributors with pagination
+  const fetchDistributors = async (mdId: string, page: number = 1) => {
     if (!mdId) {
       setDistributors([]);
+      setTotalCount(0);
       return;
     }
 
@@ -184,8 +186,48 @@ export default function GetAllDistributor() {
     if (!token) return;
 
     setLoadingDistributors(true);
-    setDistributors([]);
     
+    try {
+      const offset = (page - 1) * itemsPerPage;
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          params: {
+            limit: itemsPerPage,
+            offset: offset,
+          },
+        }
+      );
+
+      if (res.data?.status === "success" && res.data?.data) {
+        const list = res.data.data.distributors || [];
+        const count = res.data.data.total_count || res.data.data.count || list.length;
+        
+        setDistributors(list);
+        setTotalCount(count);
+      } else {
+        toast.error("Failed to load distributors");
+        setDistributors([]);
+        setTotalCount(0);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to load distributors");
+      setDistributors([]);
+      setTotalCount(0);
+    } finally {
+      setLoadingDistributors(false);
+    }
+  };
+
+  // Fetch all distributors for export (without pagination)
+  const fetchAllDistributorsForExport = async (mdId: string): Promise<Distributor[]> => {
+    const token = getAuthToken();
+    if (!token) return [];
+
     try {
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
@@ -194,27 +236,33 @@ export default function GetAllDistributor() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          params: {
+            limit: 10000, // Large number to get all records
+            offset: 0,
+          },
         }
       );
 
       if (res.data?.status === "success" && res.data?.data) {
-        const list = res.data.data.distributors || [];
-        setDistributors(list);
-        setCurrentPage(1);
-      } else {
-        toast.error("Failed to load distributors");
+        return res.data.data.distributors || [];
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to load distributors");
-    } finally {
-      setLoadingDistributors(false);
+      return [];
+    } catch (error) {
+      console.error("Error fetching all distributors:", error);
+      return [];
     }
   };
 
+  // Fetch distributors when MD changes or page changes
   useEffect(() => {
     if (selectedMD) {
-      fetchDistributors(selectedMD);
+      fetchDistributors(selectedMD, currentPage);
     }
+  }, [selectedMD, currentPage]);
+
+  // Reset to page 1 when MD changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [selectedMD]);
 
   const handleEditClick = async (distributor: Distributor) => {
@@ -337,7 +385,7 @@ export default function GetAllDistributor() {
 
       setEditDialogOpen(false);
       setSelectedDistributor(null);
-      fetchDistributors(selectedMD);
+      fetchDistributors(selectedMD, currentPage);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Update failed");
     } finally {
@@ -371,7 +419,7 @@ export default function GetAllDistributor() {
   
       toast.success("Block status updated successfully");
       setEditDialogOpen(false);
-      fetchDistributors(selectedMD);
+      fetchDistributors(selectedMD, currentPage);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update block status");
     }
@@ -403,23 +451,32 @@ export default function GetAllDistributor() {
   
       toast.success("KYC status updated successfully");
       setEditDialogOpen(false);
-      fetchDistributors(selectedMD);
+      fetchDistributors(selectedMD, currentPage);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update KYC status");
     }
   };
 
-  // Export to Excel
-  const exportToExcel = () => {
+  // Export to Excel - fetches all data
+  const exportToExcel = async () => {
     try {
-      if (distributors.length === 0) {
+      if (!selectedMD) {
+        toast.error("Please select a master distributor");
+        return;
+      }
+
+      toast.info("Fetching all data for export...");
+      
+      const allDistributors = await fetchAllDistributorsForExport(selectedMD);
+      
+      if (allDistributors.length === 0) {
         toast.error("No data to export");
         return;
       }
 
       const selectedMDInfo = masterDistributors.find(md => md.master_distributor_id === selectedMD);
 
-      const data = distributors.map((dist, index) => ({
+      const data = allDistributors.map((dist, index) => ({
         "S.No": index + 1,
         "Distributor ID": dist.distributor_id,
         "Master Distributor ID": dist.master_distributor_id,
@@ -480,7 +537,7 @@ export default function GetAllDistributor() {
       const filename = `Distributors_${mdName}_${timestamp}.xlsx`;
 
       XLSX.writeFile(wb, filename);
-      toast.success(`Exported ${distributors.length} distributors successfully`);
+      toast.success(`Exported ${allDistributors.length} distributors successfully`);
     } catch (error) {
       toast.error("Failed to export data");
     }
@@ -504,9 +561,8 @@ export default function GetAllDistributor() {
     });
   };
 
-  const totalPages = Math.max(1, Math.ceil(distributors.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentDistributors = distributors.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -515,7 +571,7 @@ export default function GetAllDistributor() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Distributors</h1>
           <p className="text-gray-600 mt-1">
-            Manage and view all distributors
+            Manage and view all distributors {totalCount > 0 && `(${totalCount} total)`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -523,13 +579,13 @@ export default function GetAllDistributor() {
             onClick={exportToExcel}
             variant="outline"
             size="sm"
-            disabled={distributors.length === 0}
+            disabled={!selectedMD || totalCount === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export
+            Export All
           </Button>
           <Button 
-            onClick={() => selectedMD && fetchDistributors(selectedMD)} 
+            onClick={() => selectedMD && fetchDistributors(selectedMD, currentPage)} 
             variant="outline" 
             size="sm"
             disabled={!selectedMD}
@@ -612,8 +668,8 @@ export default function GetAllDistributor() {
                   </TableHeader>
 
                   <TableBody>
-                    {currentDistributors.length > 0 ? (
-                      currentDistributors.map((d, idx) => (
+                    {distributors.length > 0 ? (
+                      distributors.map((d, idx) => (
                         <TableRow key={d.distributor_id} className="hover:bg-gray-50">
                           <TableCell className="text-center">{startIndex + idx + 1}</TableCell>
                           <TableCell className="text-center font-mono text-xs">
@@ -670,11 +726,11 @@ export default function GetAllDistributor() {
               </div>
 
               {/* Pagination */}
-              {distributors.length > itemsPerPage && (
+              {totalCount > itemsPerPage && (
                 <div className="flex items-center justify-between border-t px-6 py-4">
                   <p className="text-sm text-gray-600">
-                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, distributors.length)} of{" "}
-                    {distributors.length} distributors
+                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalCount)} of{" "}
+                    {totalCount} distributors
                   </p>
                   <div className="flex gap-2">
                     <Button
