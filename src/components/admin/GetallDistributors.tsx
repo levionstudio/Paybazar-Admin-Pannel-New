@@ -121,9 +121,9 @@ export default function GetAllDistributor() {
   });
   const itemsPerPage = 10;
 
-  // Fetch all Master Distributors on mount
+  // Fetch ALL Master Distributors on mount (no pagination for dropdown)
   useEffect(() => {
-    const fetchMasterDistributors = async () => {
+    const fetchAllMasterDistributors = async () => {
       const token = getAuthToken();
       if (!token) {
         setLoadingMDs(false);
@@ -135,8 +135,16 @@ export default function GetAllDistributor() {
         const decoded = jwtDecode<DecodedToken>(token);
         const adminId = decoded.admin_id;
 
+        // Add parameters to fetch ALL master distributors
+        const params = new URLSearchParams({
+          limit: '10000',      // Very high limit to get all records
+          page_size: '10000',  // Alternative parameter name
+          per_page: '10000',   // Another alternative
+          all: 'true'          // Some APIs use this flag
+        });
+
         const res = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?${params.toString()}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -155,8 +163,10 @@ export default function GetAllDistributor() {
             master_distributor_phone: md.master_distributor_phone,
           }));
 
+          console.log(`✅ Loaded ${normalized.length} master distributors for dropdown`);
           setMasterDistributors(normalized);
           
+          // Auto-select first MD if available
           if (normalized.length > 0) {
             setSelectedMD(normalized[0].master_distributor_id);
           }
@@ -164,16 +174,17 @@ export default function GetAllDistributor() {
           toast.error("Failed to load master distributors");
         }
       } catch (error: any) {
+        console.error("Error fetching master distributors:", error);
         toast.error(error.response?.data?.message || "Failed to load master distributors");
       } finally {
         setLoadingMDs(false);
       }
     };
 
-    fetchMasterDistributors();
+    fetchAllMasterDistributors();
   }, []);
 
-  // Fetch distributors with pagination
+  // Fetch distributors with pagination (10 per page)
   const fetchDistributors = async (mdId: string, page: number = 1) => {
     if (!mdId) {
       setDistributors([]);
@@ -188,6 +199,9 @@ export default function GetAllDistributor() {
     
     try {
       const offset = (page - 1) * itemsPerPage;
+      
+      console.log(`📄 Fetching page ${page} (offset: ${offset}, limit: ${itemsPerPage}) for MD: ${mdId}`);
+      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
         {
@@ -206,6 +220,8 @@ export default function GetAllDistributor() {
         const list = res.data.data.distributors || [];
         const count = res.data.data.total_count || res.data.data.count || list.length;
         
+        console.log(`✅ Loaded ${list.length} distributors (Total: ${count})`);
+        
         setDistributors(list);
         setTotalCount(count);
       } else {
@@ -214,6 +230,7 @@ export default function GetAllDistributor() {
         setTotalCount(0);
       }
     } catch (error: any) {
+      console.error("Error fetching distributors:", error);
       toast.error(error.response?.data?.message || "Failed to load distributors");
       setDistributors([]);
       setTotalCount(0);
@@ -228,6 +245,8 @@ export default function GetAllDistributor() {
     if (!token) return [];
 
     try {
+      console.log("📥 Fetching ALL distributors for export...");
+      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
         {
@@ -236,18 +255,20 @@ export default function GetAllDistributor() {
             "Content-Type": "application/json",
           },
           params: {
-            limit: 10000, // Large number to get all records
+            limit: 100000, // Very large number to get all records
             offset: 0,
           },
         }
       );
 
       if (res.data?.status === "success" && res.data?.data) {
-        return res.data.data.distributors || [];
+        const allData = res.data.data.distributors || [];
+        console.log(`✅ Fetched ${allData.length} distributors for export`);
+        return allData;
       }
       return [];
     } catch (error) {
-      console.error("Error fetching all distributors:", error);
+      console.error("Error fetching all distributors for export:", error);
       return [];
     }
   };
@@ -608,27 +629,34 @@ export default function GetAllDistributor() {
                 <span className="text-sm text-gray-600">Loading...</span>
               </div>
             ) : (
-              <Select value={selectedMD} onValueChange={setSelectedMD}>
-                <SelectTrigger className="h-11 flex-1 bg-white">
-                  <SelectValue placeholder="Select master distributor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {masterDistributors.length === 0 ? (
-                    <div className="px-2 py-1.5 text-sm text-gray-600">
-                      No master distributors found
-                    </div>
-                  ) : (
-                    masterDistributors.map((md) => (
-                      <SelectItem
-                        key={md.master_distributor_id}
-                        value={md.master_distributor_id}
-                      >
-                        {md.master_distributor_name || md.master_distributor_id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex-1 space-y-1">
+                <Select value={selectedMD} onValueChange={setSelectedMD}>
+                  <SelectTrigger className="h-11 bg-white">
+                    <SelectValue placeholder="Select master distributor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {masterDistributors.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-600">
+                        No master distributors found
+                      </div>
+                    ) : (
+                      masterDistributors.map((md) => (
+                        <SelectItem
+                          key={md.master_distributor_id}
+                          value={md.master_distributor_id}
+                        >
+                          {md.master_distributor_name || md.master_distributor_email || md.master_distributor_id}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {masterDistributors.length > 0 && (
+                  <p className="text-xs text-gray-500 pl-1">
+                    {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>

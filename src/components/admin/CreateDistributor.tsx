@@ -125,9 +125,9 @@ const CreateDistributorPage = () => {
     return { label: "Strong", score: 3 };
   };
 
-  // Fetch master distributors
+  // Fetch ALL master distributors (no pagination)
   useEffect(() => {
-    const fetchMasterDistributors = async () => {
+    const fetchAllMasterDistributors = async () => {
       const token = getAuthToken();
       if (!token) {
         toast({
@@ -143,9 +143,19 @@ const CreateDistributorPage = () => {
       try {
         const decoded = jwtDecode<DecodedToken>(token);
         const adminId = decoded.admin_id;
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`;
         
-        const res = await axios.get(apiUrl, {
+        // Method 1: Try fetching with a very high limit parameter
+        let apiUrl = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`;
+        
+        // Add query parameters to get all records (try different common parameter names)
+        const params = new URLSearchParams({
+          limit: '1000',      // Very high limit
+          page_size: '1000',  // Alternative parameter name
+          per_page: '1000',   // Another alternative
+          all: 'true'         // Some APIs use this flag
+        });
+        
+        const res = await axios.get(`${apiUrl}?${params.toString()}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -153,10 +163,9 @@ const CreateDistributorPage = () => {
         });
 
         if (res.data.status === "success" && res.data.data) {
-          // Handle nested master_distributors array
           let distributors = res.data.data.master_distributors || [];
           
-          // Map to correct structure matching Go backend
+          // Map to correct structure
           distributors = distributors.map((md: any) => ({
             master_distributor_id: md.master_distributor_id,
             master_distributor_name: md.master_distributor_name,
@@ -169,6 +178,7 @@ const CreateDistributorPage = () => {
           // Filter out any invalid entries
           distributors = distributors.filter((md: any) => md.master_distributor_id);
           
+          console.log(`Loaded ${distributors.length} master distributors`);
           setMasterDistributors(distributors);
           
           // Auto-select if only one MD exists
@@ -194,7 +204,7 @@ const CreateDistributorPage = () => {
       }
     };
 
-    fetchMasterDistributors();
+    fetchAllMasterDistributors();
   }, []);
 
   const {
@@ -362,7 +372,7 @@ const onSubmit = async (data: DistributorFormData) => {
                         </div>
                       ) : (
                         masterDistributors.map((md, index) => {
-                          const displayName = md.master_distributor_id || md.master_distributor_email ||md.master_distributor_name || `MD-${index + 1}`;
+                          const displayName = md.master_distributor_name || md.master_distributor_email || md.master_distributor_id || `MD-${index + 1}`;
                           
                           return (
                             <SelectItem
@@ -370,6 +380,7 @@ const onSubmit = async (data: DistributorFormData) => {
                               value={md.master_distributor_id}
                             >
                               {displayName}
+                              {md.business_name && ` (${md.business_name})`}
                             </SelectItem>
                           );
                         })
@@ -377,14 +388,20 @@ const onSubmit = async (data: DistributorFormData) => {
                     </SelectContent>
                   </Select>
                 )}
-                {!selectedMasterDistributorId && !loadingMasterDistributors && (
+                {!selectedMasterDistributorId && !loadingMasterDistributors && masterDistributors.length > 0 && (
                   <p className="text-sm text-red-600">
                     Please select a master distributor
+                  </p>
+                )}
+                {!loadingMasterDistributors && masterDistributors.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
                   </p>
                 )}
               </div>
             </div>
 
+            {/* Rest of the form remains the same... */}
             {/* Personal Information Section */}
             <div className="space-y-6">
               <div className="flex items-center gap-3 pb-4 border-b">

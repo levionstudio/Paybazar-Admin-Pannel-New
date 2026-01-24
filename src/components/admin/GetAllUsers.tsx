@@ -126,9 +126,9 @@ export default function GetAllRetailers() {
 
   const itemsPerPage = 10;
 
-  // Fetch all Distributors on mount
+  // Fetch ALL Distributors on mount (no pagination for dropdown)
   useEffect(() => {
-    const fetchDistributors = async () => {
+    const fetchAllDistributors = async () => {
       const token = getAuthToken();
       if (!token) {
         setLoadingDistributors(false);
@@ -140,8 +140,16 @@ export default function GetAllRetailers() {
         const decoded = jwtDecode<DecodedToken>(token);
         const adminId = decoded.admin_id;
 
+        // Add parameters to fetch ALL distributors
+        const params = new URLSearchParams({
+          limit: '10000',      // Very high limit to get all records
+          page_size: '10000',  // Alternative parameter name
+          per_page: '10000',   // Another alternative
+          all: 'true'          // Some APIs use this flag
+        });
+
         const res = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}?${params.toString()}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -161,8 +169,10 @@ export default function GetAllRetailers() {
             business_name: d.business_name,
           }));
 
+          console.log(`✅ Loaded ${normalized.length} distributors for dropdown`);
           setDistributors(normalized);
           
+          // Auto-select first distributor if available
           if (normalized.length > 0) {
             setSelectedDistributor(normalized[0].distributor_id);
           }
@@ -170,16 +180,17 @@ export default function GetAllRetailers() {
           toast.error("Failed to load distributors");
         }
       } catch (error: any) {
+        console.error("Error fetching distributors:", error);
         toast.error(error.response?.data?.message || "Failed to load distributors");
       } finally {
         setLoadingDistributors(false);
       }
     };
 
-    fetchDistributors();
+    fetchAllDistributors();
   }, []);
 
-  // Fetch retailers with pagination
+  // Fetch retailers with pagination (10 per page)
   const fetchRetailers = async (distributorId: string, page: number = 1) => {
     if (!distributorId) {
       setRetailers([]);
@@ -194,6 +205,9 @@ export default function GetAllRetailers() {
     
     try {
       const offset = (page - 1) * itemsPerPage;
+      
+      console.log(`📄 Fetching page ${page} (offset: ${offset}, limit: ${itemsPerPage}) for Distributor: ${distributorId}`);
+      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -212,6 +226,8 @@ export default function GetAllRetailers() {
         const list = res.data.data.retailers || [];
         const count = res.data.data.total_count || res.data.data.count || list.length;
         
+        console.log(`✅ Loaded ${list.length} retailers (Total: ${count})`);
+        
         setRetailers(list);
         setTotalCount(count);
       } else {
@@ -220,6 +236,7 @@ export default function GetAllRetailers() {
         setTotalCount(0);
       }
     } catch (error: any) {
+      console.error("Error fetching retailers:", error);
       toast.error(error.response?.data?.message || "Failed to load retailers");
       setRetailers([]);
       setTotalCount(0);
@@ -234,6 +251,8 @@ export default function GetAllRetailers() {
     if (!token) return [];
 
     try {
+      console.log("📥 Fetching ALL retailers for export...");
+      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -242,18 +261,20 @@ export default function GetAllRetailers() {
             "Content-Type": "application/json",
           },
           params: {
-            limit: 10000, // Large number to get all records
+            limit: 100000, // Very large number to get all records
             offset: 0,
           },
         }
       );
 
       if (res.data?.status === "success" && res.data?.data) {
-        return res.data.data.retailers || [];
+        const allData = res.data.data.retailers || [];
+        console.log(`✅ Fetched ${allData.length} retailers for export`);
+        return allData;
       }
       return [];
     } catch (error) {
-      console.error("Error fetching all retailers:", error);
+      console.error("Error fetching all retailers for export:", error);
       return [];
     }
   };
@@ -627,27 +648,34 @@ export default function GetAllRetailers() {
                 <span className="text-sm text-gray-600">Loading...</span>
               </div>
             ) : (
-              <Select value={selectedDistributor} onValueChange={setSelectedDistributor}>
-                <SelectTrigger className="h-11 flex-1 bg-white">
-                  <SelectValue placeholder="Select distributor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {distributors.length === 0 ? (
-                    <div className="px-2 py-1.5 text-sm text-gray-600">
-                      No distributors found
-                    </div>
-                  ) : (
-                    distributors.map((d) => (
-                      <SelectItem
-                        key={d.distributor_id}
-                        value={d.distributor_id}
-                      >
-                        {d.distributor_name || d.distributor_email}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex-1 space-y-1">
+                <Select value={selectedDistributor} onValueChange={setSelectedDistributor}>
+                  <SelectTrigger className="h-11 bg-white">
+                    <SelectValue placeholder="Select distributor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {distributors.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-600">
+                        No distributors found
+                      </div>
+                    ) : (
+                      distributors.map((d) => (
+                        <SelectItem
+                          key={d.distributor_id}
+                          value={d.distributor_id}
+                        >
+                          {d.distributor_name || d.distributor_email || d.distributor_id}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {distributors.length > 0 && (
+                  <p className="text-xs text-gray-500 pl-1">
+                    {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} available
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>

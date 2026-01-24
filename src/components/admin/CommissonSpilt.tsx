@@ -56,18 +56,21 @@ interface DecodedToken {
 
 interface MasterDistributor {
   master_distributor_id: string;
-  name: string;
+  master_distributor_name: string;
+  master_distributor_email: string;
 }
 
 interface Distributor {
   distributor_id: string;
-  name: string;
+  distributor_name: string;
+  distributor_email: string;
   master_distributor_id: string;
 }
 
 interface Retailer {
   retailer_id: string;
-  name: string;
+  retailer_name: string;
+  retailer_email: string;
   distributor_id: string;
 }
 
@@ -170,37 +173,77 @@ export default function CommissionSplit() {
   }, []);
 
   /* =====================
-     FETCH MASTER DISTRIBUTORS
+     FETCH ALL MASTER DISTRIBUTORS (no pagination)
      ===================== */
   useEffect(() => {
     if (!adminId) return;
-    setLoadingMDs(true);
-    const token = getAuthToken();
-    axios
-      .get(`${API_BASE_URL}/md/get/admin/${adminId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        setMasterDistributors(res.data.data.master_distributors || []);
-      })
-      .catch(() => toast.error("Failed to load Master Distributors"))
-      .finally(() => setLoadingMDs(false));
+    
+    const fetchAllMasterDistributors = async () => {
+      setLoadingMDs(true);
+      const token = getAuthToken();
+      
+      try {
+        // Add parameters to fetch ALL master distributors
+        const params = new URLSearchParams({
+          limit: '10000',
+          page_size: '10000',
+          per_page: '10000',
+          all: 'true'
+        });
+
+        const res = await axios.get(
+          `${API_BASE_URL}/md/get/admin/${adminId}?${params.toString()}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const mdList = res.data.data.master_distributors || [];
+        
+        console.log(`✅ Loaded ${mdList.length} master distributors for dropdown`);
+        setMasterDistributors(mdList);
+      } catch (error) {
+        console.error("Error fetching master distributors:", error);
+        toast.error("Failed to load Master Distributors");
+      } finally {
+        setLoadingMDs(false);
+      }
+    };
+
+    fetchAllMasterDistributors();
   }, [adminId]);
 
   /* =====================
-     FETCH DISTRIBUTORS
+     FETCH ALL DISTRIBUTORS FOR SELECTED MD (no pagination)
      ===================== */
-  const fetchDistributors = async (mdId: string) => {
+  const fetchAllDistributors = async (mdId: string) => {
     const token = getAuthToken();
     setLoadingDistributors(true);
     setDistributors([]);
     setRetailers([]);
+    
     try {
-      const res = await axios.get(`${API_BASE_URL}/distributor/get/md/${mdId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      // Add parameters to fetch ALL distributors for this MD
+      const params = new URLSearchParams({
+        limit: '10000',
+        page_size: '10000',
+        per_page: '10000',
+        all: 'true'
       });
-      setDistributors(res.data.data.distributors || []);
+
+      const res = await axios.get(
+        `${API_BASE_URL}/distributor/get/md/${mdId}?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      const distList = res.data.data.distributors || [];
+      
+      console.log(`✅ Loaded ${distList.length} distributors for MD: ${mdId}`);
+      setDistributors(distList);
     } catch (error) {
+      console.error("Error fetching distributors:", error);
       toast.error("Failed to load distributors");
     } finally {
       setLoadingDistributors(false);
@@ -208,20 +251,34 @@ export default function CommissionSplit() {
   };
 
   /* =====================
-     FETCH RETAILERS
+     FETCH ALL RETAILERS FOR SELECTED DISTRIBUTOR (no pagination)
      ===================== */
-  const fetchRetailers = async (distId: string) => {
+  const fetchAllRetailers = async (distId: string) => {
     const token = getAuthToken();
     setLoadingRetailers(true);
+    
     try {
+      // Add parameters to fetch ALL retailers for this distributor
+      const params = new URLSearchParams({
+        limit: '10000',
+        page_size: '10000',
+        per_page: '10000',
+        all: 'true'
+      });
+
       const res = await axios.get(
-        `${API_BASE_URL}/retailer/get/distributor/${distId}`,
+        `${API_BASE_URL}/retailer/get/distributor/${distId}?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setRetailers(res.data.data.retailers || []);
+      
+      const retList = res.data.data.retailers || [];
+      
+      console.log(`✅ Loaded ${retList.length} retailers for Distributor: ${distId}`);
+      setRetailers(retList);
     } catch (error) {
+      console.error("Error fetching retailers:", error);
       toast.error("Failed to load retailers");
     } finally {
       setLoadingRetailers(false);
@@ -302,8 +359,8 @@ export default function CommissionSplit() {
     setIsMDLocked(false);
     setIsDistributorLocked(false);
 
-    const mdName =
-      masterDistributors.find((md) => md.master_distributor_id === mdId)?.name || "";
+    const mdData = masterDistributors.find((md) => md.master_distributor_id === mdId);
+    const mdName = mdData?.master_distributor_name || mdData?.master_distributor_email || "";
 
     setCurrentHierarchyLevel({
       level: "master_distributor",
@@ -314,8 +371,8 @@ export default function CommissionSplit() {
     // Fetch all commissions for this MD
     await fetchAllCommissions(mdId);
 
-    // Fetch distributors under this MD
-    await fetchDistributors(mdId);
+    // Fetch ALL distributors under this MD
+    await fetchAllDistributors(mdId);
   };
 
   /* =====================
@@ -334,8 +391,8 @@ export default function CommissionSplit() {
     setIsMDLocked(true);
     setIsDistributorLocked(false);
 
-    const distName =
-      distributors.find((dist) => dist.distributor_id === distId)?.name || "";
+    const distData = distributors.find((dist) => dist.distributor_id === distId);
+    const distName = distData?.distributor_name || distData?.distributor_email || "";
 
     setCurrentHierarchyLevel({
       level: "distributor",
@@ -346,8 +403,8 @@ export default function CommissionSplit() {
     // Fetch all commissions for this distributor
     await fetchAllCommissions(distId);
 
-    // Fetch retailers under this distributor
-    await fetchRetailers(distId);
+    // Fetch ALL retailers under this distributor
+    await fetchAllRetailers(distId);
   };
 
   /* =====================
@@ -364,8 +421,8 @@ export default function CommissionSplit() {
     setIsMDLocked(true);
     setIsDistributorLocked(true);
 
-    const retName =
-      retailers.find((ret) => ret.retailer_id === retId)?.name || "";
+    const retData = retailers.find((ret) => ret.retailer_id === retId);
+    const retName = retData?.retailer_name || retData?.retailer_email || "";
 
     setCurrentHierarchyLevel({
       level: "retailer",
@@ -460,7 +517,7 @@ export default function CommissionSplit() {
     if (!retailerSearch) return true;
     const search = retailerSearch.toLowerCase();
     return (
-      ret.name.toLowerCase().includes(search) ||
+      ret.retailer_name.toLowerCase().includes(search) ||
       ret.retailer_id.toLowerCase().includes(search)
     );
   });
@@ -576,8 +633,6 @@ export default function CommissionSplit() {
         toast.success(`Commission for ${selectedService} created successfully`);
       } else {
         // UPDATE existing commission
-        // IMPORTANT: Backend expects all commission fields even though they're marked as omitempty
-        // The SQL query updates all fields, so we must provide all values
         const updatePayload = {
           commision_id: editingCommission.commision_id,
           total_commision: TOTAL_COMMISSION,
@@ -591,15 +646,7 @@ export default function CommissionSplit() {
         console.log("URL:", `${API_BASE_URL}/commision/update/commision`);
         console.log("Editing Commission Object:", editingCommission);
         console.log("Commission ID:", editingCommission.commision_id);
-        console.log("Commission ID Type:", typeof editingCommission.commision_id);
         console.log("Update Payload:", updatePayload);
-        console.log("Payload Breakdown:");
-        console.log("  - commision_id:", updatePayload.commision_id);
-        console.log("  - total_commision:", updatePayload.total_commision);
-        console.log("  - admin_commision:", updatePayload.admin_commision);
-        console.log("  - master_distributor_commision:", updatePayload.master_distributor_commision);
-        console.log("  - distributor_commision:", updatePayload.distributor_commision);
-        console.log("  - retailer_commision:", updatePayload.retailer_commision);
 
         const updateResponse = await axios.put(
           `${API_BASE_URL}/commision/update/commision`,
@@ -624,15 +671,6 @@ export default function CommissionSplit() {
       console.error("Error Response:", err.response?.data);
       console.error("Error Status:", err.response?.status);
       console.error("Error Message:", err.message);
-      console.error("Full Error:", err);
-      
-      // Try to extract more detailed error info
-      if (err.response?.data?.message) {
-        console.error("Backend Error Message:", err.response.data.message);
-      }
-      if (err.response?.data?.errors) {
-        console.error("Backend Validation Errors:", err.response.data.errors);
-      }
       
       const errorMessage = err.response?.data?.message || err.message || "Operation failed";
       toast.error(errorMessage);
@@ -675,42 +713,46 @@ export default function CommissionSplit() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-3">
-          <div className="flex items-center justify-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
-              <Percent className="w-8 h-8 text-white" />
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+              <Percent className="h-6 w-6 text-blue-600" />
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Commission Configuration
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Commission Configuration</h1>
+              <p className="text-gray-600 mt-1">
+                Configure commission splits for your hierarchy
+              </p>
+            </div>
           </div>
-          <p className="text-slate-600 text-lg">
-            Configure commission splits for your hierarchy
-          </p>
         </div>
 
         {/* Hierarchy Selection Card */}
-        <Card className="border-2 border-blue-100 shadow-lg">
-          <CardContent className="p-6">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <Building2 className="w-6 h-6 text-blue-600" />
-                <h2 className="text-2xl font-bold text-slate-800">
-                  Select Hierarchy
-                </h2>
+        <Card className="max-w-7xl mx-auto shadow-md">
+          <CardContent className="p-0">
+            <div className="p-6 md:p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Select Hierarchy
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Choose the level to view and configure commissions
+                  </p>
+                </div>
               </div>
-              <p className="text-slate-600">
-                Choose the level to view and configure commissions
-              </p>
 
               {/* Master Distributor Dropdown */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label className="text-base font-semibold text-slate-700">
-                    Master Distributor *
+                  <Label className="text-sm font-medium text-gray-700">
+                    Master Distributor <span className="text-red-500">*</span>
                   </Label>
                   {isMDLocked && <Lock className="w-4 h-4 text-amber-500" />}
                 </div>
@@ -721,101 +763,149 @@ export default function CommissionSplit() {
                 >
                   <SelectTrigger
                     className={cn(
-                      "h-14 text-lg border-2",
-                      isMDLocked ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+                      "h-12 bg-white",
+                      isMDLocked ? "bg-gray-100 cursor-not-allowed" : ""
                     )}
                   >
                     <SelectValue placeholder="Select Master Distributor" />
                   </SelectTrigger>
                   <SelectContent>
-                    {masterDistributors.map((md) => (
-                      <SelectItem
-                        key={md.master_distributor_id}
-                        value={md.master_distributor_id}
-                      >
-                        {md.name} ({md.master_distributor_id})
-                      </SelectItem>
-                    ))}
+                    {masterDistributors.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-600">
+                        No master distributors found
+                      </div>
+                    ) : (
+                      masterDistributors.map((md) => (
+                        <SelectItem
+                          key={md.master_distributor_id}
+                          value={md.master_distributor_id}
+                        >
+                          {md.master_distributor_name || md.master_distributor_email} ({md.master_distributor_id})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {masterDistributors.length > 0 && (
+                  <p className="text-sm text-gray-600">
+                    {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
+                  </p>
+                )}
               </div>
 
               {/* Distributor Dropdown */}
               {selectedMD && (
-                <div className="space-y-3 pt-4 border-t">
+                <div className="space-y-2 pt-4 border-t">
                   <div className="flex items-center gap-2">
-                    <Label className="text-base font-semibold text-slate-700">
+                    <Label className="text-sm font-medium text-gray-700">
                       Distributor (Optional)
                     </Label>
                     {isDistributorLocked && (
                       <Lock className="w-4 h-4 text-amber-500" />
                     )}
                   </div>
-                  <Select
-                    value={selectedDistributor}
-                    onValueChange={handleDistributorSelect}
-                    disabled={loadingDistributors || isDistributorLocked}
-                  >
-                    <SelectTrigger
-                      className={cn(
-                        "h-14 text-lg border-2",
-                        isDistributorLocked
-                          ? "bg-gray-100 cursor-not-allowed"
-                          : "bg-white"
-                      )}
-                    >
-                      <SelectValue placeholder="Select Distributor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {distributors.map((dist) => (
-                        <SelectItem
-                          key={dist.distributor_id}
-                          value={dist.distributor_id}
+                  {loadingDistributors ? (
+                    <div className="flex items-center gap-2 h-12 px-3 border rounded-md bg-white">
+                      <Loader2 className="animate-spin h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">Loading distributors...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Select
+                        value={selectedDistributor}
+                        onValueChange={handleDistributorSelect}
+                        disabled={isDistributorLocked}
+                      >
+                        <SelectTrigger
+                          className={cn(
+                            "h-12 bg-white",
+                            isDistributorLocked ? "bg-gray-100 cursor-not-allowed" : ""
+                          )}
                         >
-                          {dist.name} ({dist.distributor_id})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                          <SelectValue placeholder="Select Distributor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {distributors.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-gray-600">
+                              No distributors found
+                            </div>
+                          ) : (
+                            distributors.map((dist) => (
+                              <SelectItem
+                                key={dist.distributor_id}
+                                value={dist.distributor_id}
+                              >
+                                {dist.distributor_name || dist.distributor_email} ({dist.distributor_id})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {distributors.length > 0 && (
+                        <p className="text-sm text-gray-600">
+                          {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} available
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Retailer Search & Dropdown */}
               {selectedDistributor && (
-                <div className="space-y-3 pt-4 border-t">
-                  <Label className="text-base font-semibold text-slate-700">
+                <div className="space-y-2 pt-4 border-t">
+                  <Label className="text-sm font-medium text-gray-700">
                     Retailer (Optional)
                   </Label>
 
-                  {/* Search field if there are many retailers */}
-                  {retailers.length > 5 && (
-                    <div className="relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <Input
-                        value={retailerSearch}
-                        onChange={(e) => setRetailerSearch(e.target.value)}
-                        className="pl-12 h-12 bg-white border-2"
-                        placeholder="Search retailers..."
-                      />
+                  {loadingRetailers ? (
+                    <div className="flex items-center gap-2 h-12 px-3 border rounded-md bg-white">
+                      <Loader2 className="animate-spin h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">Loading retailers...</span>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {/* Search field if there are many retailers */}
+                      {retailers.length > 5 && (
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            value={retailerSearch}
+                            onChange={(e) => setRetailerSearch(e.target.value)}
+                            className="pl-10 h-12 bg-white"
+                            placeholder="Search retailers..."
+                          />
+                        </div>
+                      )}
 
-                  <Select
-                    value={selectedRetailer}
-                    onValueChange={handleRetailerSelect}
-                    disabled={loadingRetailers}
-                  >
-                    <SelectTrigger className="h-14 text-lg bg-white border-2">
-                      <SelectValue placeholder="Select Retailer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredRetailers.map((ret) => (
-                        <SelectItem key={ret.retailer_id} value={ret.retailer_id}>
-                          {ret.name} ({ret.retailer_id})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <Select
+                        value={selectedRetailer}
+                        onValueChange={handleRetailerSelect}
+                      >
+                        <SelectTrigger className="h-12 bg-white">
+                          <SelectValue placeholder="Select Retailer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredRetailers.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-gray-600">
+                              No retailers found
+                            </div>
+                          ) : (
+                            filteredRetailers.map((ret) => (
+                              <SelectItem key={ret.retailer_id} value={ret.retailer_id}>
+                                {ret.retailer_name || ret.retailer_email} ({ret.retailer_id})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {retailers.length > 0 && (
+                        <p className="text-sm text-gray-600">
+                          {retailers.length} retailer{retailers.length !== 1 ? 's' : ''} available
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -824,41 +914,42 @@ export default function CommissionSplit() {
 
         {/* Commission Table - Show when user is selected */}
         {currentHierarchyLevel && !isEditMode && (
-          <Card className="border-2 border-blue-100 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div className="flex items-center gap-3">
-                <TableIcon className="w-6 h-6 text-blue-600" />
-                <div>
-                  <CardTitle className="text-2xl">
-                    Commission Table - {currentHierarchyLevel.userName}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    View and manage all service commissions
-                  </p>
+          <Card className="max-w-7xl mx-auto shadow-md">
+            <CardContent className="p-0">
+              <div className="p-6 md:p-8 space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <TableIcon className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        Commission Table - {currentHierarchyLevel.userName}
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        View and manage all service commissions
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => fetchAllCommissions(currentHierarchyLevel.userId)}
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingCommissions}
+                  >
+                    <RefreshCw
+                      className={cn(
+                        "h-4 w-4 mr-2",
+                        loadingCommissions && "animate-spin"
+                      )}
+                    />
+                    Refresh
+                  </Button>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => fetchAllCommissions(currentHierarchyLevel.userId)}
-                  variant="outline"
-                  size="sm"
-                  disabled={loadingCommissions}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "h-4 w-4 mr-2",
-                      loadingCommissions && "animate-spin"
-                    )}
-                  />
-                  Refresh
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
               {loadingCommissions ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-                  <p className="text-slate-600 text-lg">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  <p className="text-gray-600">
                     Loading commissions...
                   </p>
                 </div>
@@ -866,28 +957,28 @@ export default function CommissionSplit() {
                 <div className="rounded-lg border overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50">
-                        <TableHead className="font-semibold">ID</TableHead>
-                        <TableHead className="font-semibold">Service</TableHead>
-                        <TableHead className="font-semibold text-center">
+                      <TableRow className="bg-gray-50">
+                        <TableHead className="font-semibold text-gray-900">ID</TableHead>
+                        <TableHead className="font-semibold text-gray-900">Service</TableHead>
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           MD Commission
                         </TableHead>
-                        <TableHead className="font-semibold text-center">
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           Distributor
                         </TableHead>
-                        <TableHead className="font-semibold text-center">
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           Retailer
                         </TableHead>
-                        <TableHead className="font-semibold text-center">
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           Admin
                         </TableHead>
-                        <TableHead className="font-semibold text-center">
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           Total
                         </TableHead>
-                        <TableHead className="font-semibold">
+                        <TableHead className="font-semibold text-gray-900">
                           Last Updated
                         </TableHead>
-                        <TableHead className="font-semibold text-center">
+                        <TableHead className="font-semibold text-gray-900 text-center">
                           Actions
                         </TableHead>
                       </TableRow>
@@ -895,7 +986,7 @@ export default function CommissionSplit() {
                     <TableBody>
                       {allCommissions.map((commission) => (
                         <TableRow key={commission.commision_id}>
-                          <TableCell className="font-mono text-xs text-muted-foreground">
+                          <TableCell className="font-mono text-xs text-gray-600">
                             #{commission.commision_id}
                           </TableCell>
                           <TableCell className="font-semibold">
@@ -918,7 +1009,7 @@ export default function CommissionSplit() {
                           <TableCell className="text-center font-bold">
                             {commission.total_commision.toFixed(2)}%
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                          <TableCell className="text-sm text-gray-600">
                             {formatDate(commission.updated_at)}
                           </TableCell>
                           <TableCell className="text-center">
@@ -938,29 +1029,29 @@ export default function CommissionSplit() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="p-4 bg-slate-100 rounded-full">
-                    <TableIcon className="w-12 h-12 text-slate-400" />
+                  <div className="p-4 bg-gray-100 rounded-full">
+                    <TableIcon className="w-8 h-8 text-gray-400" />
                   </div>
-                  <p className="text-slate-600 text-lg font-medium">
+                  <p className="text-gray-600 font-medium">
                     No commissions found
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-gray-600">
                     Create commissions for different services
                   </p>
                 </div>
               )}
 
               {/* Create New Button */}
-              <div className="mt-6 flex items-center gap-4">
+              <div className="mt-6 flex items-center gap-4 pt-6 border-t">
                 <div className="flex-1">
-                  <Label className="text-sm font-medium mb-2 block">
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">
                     Select Service to Create Commission
                   </Label>
                   <Select
                     value={selectedService}
                     onValueChange={setSelectedService}
                   >
-                    <SelectTrigger className="h-12 text-base">
+                    <SelectTrigger className="h-12 bg-white">
                       <SelectValue placeholder="Select Service" />
                     </SelectTrigger>
                     <SelectContent>
@@ -984,32 +1075,33 @@ export default function CommissionSplit() {
                 <Button
                   onClick={handleCreateNewCommission}
                   disabled={!selectedService}
-                  className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 mt-6"
+                  className="h-12 bg-blue-600 hover:bg-blue-700 mt-6"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Create New Commission
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
         )}
 
         {/* Edit/Create Commission Form */}
         {currentHierarchyLevel && isEditMode && (
-          <Card className="border-2 border-blue-100 shadow-lg">
-            <CardContent className="p-6 space-y-6">
-              {/* Section Header */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+          <Card className="max-w-7xl mx-auto shadow-md">
+            <CardContent className="p-0">
+              <div className="p-6 md:p-8 space-y-8">
+                {/* Section Header */}
+                <div className="flex items-center justify-between pb-4 border-b">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Percent className="w-5 h-5 text-blue-600" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <Percent className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-800">
+                      <h2 className="text-lg font-semibold text-gray-900">
                         {editingCommission ? "Edit" : "Create"} Commission - {selectedService}
-                      </h3>
-                      <p className="text-sm text-slate-600">
+                      </h2>
+                      <p className="text-sm text-gray-600">
                         For {currentHierarchyLevel.userName}
                       </p>
                     </div>
@@ -1030,15 +1122,14 @@ export default function CommissionSplit() {
                     </div>
                   )}
                 </div>
-              </div>
 
               {/* Commission Inputs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Master Distributor */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Label className="text-base font-semibold text-slate-700">
-                      Master Distributor Commission (%) *
+                    <Label className="text-sm font-medium text-gray-700">
+                      Master Distributor Commission (%) <span className="text-red-500">*</span>
                     </Label>
                     {isMDLocked && <Lock className="w-4 h-4 text-amber-500" />}
                   </div>
@@ -1050,20 +1141,20 @@ export default function CommissionSplit() {
                     }
                     disabled={isMDLocked}
                     className={cn(
-                      "h-14 text-lg font-semibold border-2",
+                      "h-12 font-semibold bg-white",
                       isMDLocked
                         ? "bg-gray-100 cursor-not-allowed"
-                        : "bg-white"
+                        : ""
                     )}
                     placeholder="0.00"
                   />
                 </div>
 
                 {/* Distributor */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Label className="text-base font-semibold text-slate-700">
-                      Distributor Commission (%) *
+                    <Label className="text-sm font-medium text-gray-700">
+                      Distributor Commission (%) <span className="text-red-500">*</span>
                     </Label>
                     {isDistributorLocked && (
                       <Lock className="w-4 h-4 text-amber-500" />
@@ -1077,19 +1168,19 @@ export default function CommissionSplit() {
                     }
                     disabled={isDistributorLocked}
                     className={cn(
-                      "h-14 text-lg font-semibold border-2",
+                      "h-12 font-semibold bg-white",
                       isDistributorLocked
                         ? "bg-gray-100 cursor-not-allowed"
-                        : "bg-white"
+                        : ""
                     )}
                     placeholder="0.00"
                   />
                 </div>
 
                 {/* Retailer */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold text-slate-700">
-                    Retailer Commission (%) *
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Retailer Commission (%) <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     type="text"
@@ -1097,18 +1188,18 @@ export default function CommissionSplit() {
                     onChange={(e) =>
                       handleCommissionChange("retailer", e.target.value)
                     }
-                    className="h-14 text-lg font-semibold bg-white border-2"
+                    className="h-12 font-semibold bg-white"
                     placeholder="0.00"
                   />
                 </div>
 
                 {/* Admin */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold text-slate-700">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">
                     Admin Commission (Auto)
                   </Label>
-                  <div className="h-14 px-4 bg-slate-100 border-2 border-slate-200 rounded-lg flex items-center">
-                    <span className="text-lg font-bold text-slate-700">
+                  <div className="h-12 px-4 bg-gray-100 border rounded-lg flex items-center">
+                    <span className="font-bold text-gray-700">
                       {adminCommission.toFixed(2)}%
                     </span>
                   </div>
@@ -1116,25 +1207,25 @@ export default function CommissionSplit() {
               </div>
 
               {validationError && (
-                <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                   <p className="text-red-700 font-medium">{validationError}</p>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-4 pt-6 border-t">
                 <Button
                   onClick={handleCancelEdit}
                   variant="outline"
-                  className="flex-1 h-14 text-lg border-2"
+                  className="flex-1 h-12"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleReset}
                   variant="outline"
-                  className="flex-1 h-14 text-lg border-2"
+                  className="flex-1 h-12"
                 >
                   <RefreshCw className="w-5 h-5 mr-2" />
                   Reset
@@ -1148,7 +1239,7 @@ export default function CommissionSplit() {
                     !distributorCommission ||
                     !retailerCommission
                   }
-                  className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  className="flex-1 h-12 paybazaar-button"
                 >
                   {saving ? (
                     <>
@@ -1163,18 +1254,19 @@ export default function CommissionSplit() {
                   )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
         )}
 
         {/* Confirmation Dialog */}
         <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-2xl">
+              <DialogTitle className="text-xl font-bold">
                 {editingCommission ? "Update" : "Create"} Commission for {selectedService}
               </DialogTitle>
-              <DialogDescription className="text-base pt-2">
+              <DialogDescription className="text-sm pt-2">
                 This will {editingCommission ? "update" : "create"} commission for{" "}
                 <span className="font-semibold">{currentHierarchyLevel?.userName}</span>
               </DialogDescription>
@@ -1182,7 +1274,7 @@ export default function CommissionSplit() {
 
             <div className="space-y-3 py-4">
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-gray-700">
                   Master Distributor:
                 </span>
                 <span className="font-bold text-blue-600">
@@ -1190,20 +1282,20 @@ export default function CommissionSplit() {
                 </span>
               </div>
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-slate-700">Distributor:</span>
+                <span className="font-medium text-gray-700">Distributor:</span>
                 <span className="font-bold text-blue-600">
                   {parseFloat(distributorCommission || "0").toFixed(2)}%
                 </span>
               </div>
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-slate-700">Retailer:</span>
+                <span className="font-medium text-gray-700">Retailer:</span>
                 <span className="font-bold text-blue-600">
                   {parseFloat(retailerCommission || "0").toFixed(2)}%
                 </span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-100 rounded-lg border-2 border-slate-300">
-                <span className="font-medium text-slate-700">Admin (Auto):</span>
-                <span className="font-bold text-slate-700">
+              <div className="flex justify-between items-center p-3 bg-gray-100 rounded-lg border border-gray-300">
+                <span className="font-medium text-gray-700">Admin (Auto):</span>
+                <span className="font-bold text-gray-700">
                   {adminCommission.toFixed(2)}%
                 </span>
               </div>
@@ -1213,14 +1305,14 @@ export default function CommissionSplit() {
               <Button
                 onClick={() => setConfirmDialogOpen(false)}
                 variant="outline"
-                className="border-2 h-12"
+                className="h-12"
               >
                 Cancel
               </Button>
               <Button
                 onClick={confirmSave}
                 disabled={saving}
-                className="h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="h-12 paybazaar-button"
               >
                 {saving ? (
                   <>
