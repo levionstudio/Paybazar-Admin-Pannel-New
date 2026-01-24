@@ -285,27 +285,11 @@ export function UserHierarchySwap() {
           master_distributor_id: newMDId,
         };
 
-        console.log("=== Update Distributor MD Payload ===");
-        console.log("Distributor ID:", distributor.distributor_id);
-        console.log("Distributor Name:", distributor.distributor_name);
-        console.log("Current MD ID:", distributor.master_distributor_id);
-        console.log("New MD ID:", newMDId);
-        console.log("Distributor exists in local data:", distributorExists);
-        console.log("All distributors count:", allDistributors.length);
-        console.log("Payload:", payload);
-        console.log("Endpoint:", `${API_BASE_URL}/distributor/update/md`);
-        console.log("====================================");
-
-        // Update distributor's master_distributor_id
         const response = await axios.put(
           `${API_BASE_URL}/distributor/update/md`,
           payload,
           getAuthHeaders()
         );
-
-        console.log("=== Update Distributor MD Response ===");
-        console.log("Response:", response.data);
-        console.log("======================================");
 
         toast({
           title: "Success",
@@ -330,24 +314,11 @@ export function UserHierarchySwap() {
           distributor_id: newDistId,
         };
 
-        console.log("=== Update Retailer Distributor Payload ===");
-        console.log("Retailer ID:", retailer.retailer_id);
-        console.log("New Distributor ID:", newDistId);
-        console.log("New MD ID (for reference):", newMDId);
-        console.log("Payload:", payload);
-        console.log("Endpoint:", `${API_BASE_URL}/retailer/update/distributor`);
-        console.log("==========================================");
-
-        // Update retailer's distributor_id (which will automatically update master_distributor_id based on the new distributor)
         const response = await axios.put(
           `${API_BASE_URL}/retailer/update/distributor`,
           payload,
           getAuthHeaders()
         );
-
-        console.log("=== Update Retailer Distributor Response ===");
-        console.log("Response:", response.data);
-        console.log("============================================");
 
         toast({
           title: "Success",

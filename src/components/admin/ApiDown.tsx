@@ -42,7 +42,6 @@ export default function ApiManagement() {
     }
 
     setLockLoading(true);
-    console.log("🔄 Locking API...");
 
     try {
       const response = await axios.get(
@@ -54,9 +53,6 @@ export default function ApiManagement() {
           },
         }
       );
-
-      console.log("✅ Lock response:", response.data);
-
       setApiStatus("locked");
       setLastUpdated(new Date().toISOString());
       setShowLockDialog(false);
@@ -93,8 +89,6 @@ export default function ApiManagement() {
     }
 
     setUnlockLoading(true);
-    console.log("🔄 Unlocking API...");
-
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/admin/portal/unlock`,
@@ -105,9 +99,6 @@ export default function ApiManagement() {
           },
         }
       );
-
-      console.log("✅ Unlock response:", response.data);
-
       setApiStatus("unlocked");
       setLastUpdated(new Date().toISOString());
       setShowUnlockDialog(false);

@@ -169,7 +169,6 @@ export default function GetAllRetailers() {
             business_name: d.business_name,
           }));
 
-          console.log(`✅ Loaded ${normalized.length} distributors for dropdown`);
           setDistributors(normalized);
           
           // Auto-select first distributor if available
@@ -204,10 +203,7 @@ export default function GetAllRetailers() {
     setLoadingRetailers(true);
     
     try {
-      const offset = (page - 1) * itemsPerPage;
-      
-      console.log(`📄 Fetching page ${page} (offset: ${offset}, limit: ${itemsPerPage}) for Distributor: ${distributorId}`);
-      
+      const offset = (page - 1) * itemsPerPage;      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -224,10 +220,7 @@ export default function GetAllRetailers() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const list = res.data.data.retailers || [];
-        const count = res.data.data.total_count || res.data.data.count || list.length;
-        
-        console.log(`✅ Loaded ${list.length} retailers (Total: ${count})`);
-        
+        const count = res.data.data.total_count || res.data.data.count || list.length;        
         setRetailers(list);
         setTotalCount(count);
       } else {
@@ -250,9 +243,7 @@ export default function GetAllRetailers() {
     const token = getAuthToken();
     if (!token) return [];
 
-    try {
-      console.log("📥 Fetching ALL retailers for export...");
-      
+    try {      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -269,7 +260,6 @@ export default function GetAllRetailers() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const allData = res.data.data.retailers || [];
-        console.log(`✅ Fetched ${allData.length} retailers for export`);
         return allData;
       }
       return [];

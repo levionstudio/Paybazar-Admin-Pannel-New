@@ -129,8 +129,6 @@ export default function Tickets() {
         }
       )
 
-      console.log("API Response:", response.data)
-
       if (response.data && response.data.status === "success") {
         const ticketsList = response.data.data || []
         

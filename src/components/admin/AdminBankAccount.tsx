@@ -139,7 +139,6 @@ export default function AdminBankAccount() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data);
       
       // Handle different possible response structures
       const accounts = Array.isArray(data) 

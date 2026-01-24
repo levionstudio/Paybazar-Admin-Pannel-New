@@ -179,9 +179,6 @@ const AdminWalletTransactions = () => {
       if (endDate) {
         params.append("end_date", endDate);
       }
-
-      console.log("Fetching transactions with params:", params.toString());
-
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/wallet/get/transactions/admin/${adminId}?${params.toString()}`,
         {
@@ -194,7 +191,6 @@ const AdminWalletTransactions = () => {
       const raw: WalletTransactionRaw[] = res.data?.data?.transactions || [];
       const total = res.data?.data?.total_count || res.data?.data?.total || 0;
 
-      console.log(`Raw data from API: ${raw.length} transactions, total_count: ${total}`);
 
       // Client-side date filtering for accuracy
       let filtered = raw;
@@ -203,7 +199,6 @@ const AdminWalletTransactions = () => {
         filtered = raw.filter((tx) =>
           isTransactionInDateRange(tx.created_at, startDate, endDate)
         );
-        console.log(`Client-side date filter: ${raw.length} -> ${filtered.length}`);
       }
 
       const mapped: WalletTransaction[] = filtered.map((tx) => {
@@ -227,7 +222,6 @@ const AdminWalletTransactions = () => {
       const actualCount = mapped.length > 0 ? mapped.length : total;
       setTotalCount(actualCount);
 
-      console.log(`Loaded ${mapped.length} transactions, setting totalCount to: ${actualCount}`);
     } catch (err: any) {
       console.error("Error fetching transactions:", err);
       toast({
@@ -316,7 +310,6 @@ const AdminWalletTransactions = () => {
         };
       });
 
-      console.log("Prepared data for Excel:", data.length, "rows");
 
       const ws = XLSX.utils.json_to_sheet(data);
       
@@ -340,9 +333,6 @@ const AdminWalletTransactions = () => {
       // Create filename with page info
       const filename = `Admin_Wallet_Transactions_Page${currentPage}_${getTodayDate()}.xlsx`;
       XLSX.writeFile(wb, filename);
-
-      console.log(`Excel file created: ${filename}`);
-
       toast({
         title: "Success",
         description: `Exported ${data.length} transaction${data.length !== 1 ? 's' : ''} from current page`,
@@ -388,9 +378,6 @@ const AdminWalletTransactions = () => {
       if (endDate) {
         params.append("end_date", endDate);
       }
-
-      console.log("Export ALL API call with params:", params.toString());
-
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/wallet/get/transactions/admin/${adminId}?${params.toString()}`,
         {
@@ -399,20 +386,13 @@ const AdminWalletTransactions = () => {
           },
         }
       );
-
-      console.log("Export ALL API response:", res.data);
-
       let raw: WalletTransactionRaw[] = res.data?.data?.transactions || [];
-
-      console.log(`Fetched ${raw.length} transactions for export`);
-
       // Apply client-side date filtering if needed
       if (startDate && endDate) {
         const beforeFilter = raw.length;
         raw = raw.filter((tx) =>
           isTransactionInDateRange(tx.created_at, startDate, endDate)
         );
-        console.log(`Date filter applied: ${beforeFilter} -> ${raw.length}`);
       }
 
       if (raw.length === 0) {
@@ -450,9 +430,6 @@ const AdminWalletTransactions = () => {
           Remarks: tx.remarks || "-",
         };
       });
-
-      console.log("Prepared data for Excel:", data.length, "rows");
-
       const ws = XLSX.utils.json_to_sheet(data);
       
       // Set column widths for better readability
@@ -481,9 +458,6 @@ const AdminWalletTransactions = () => {
       
       const filename = `Admin_Wallet_Transactions_All${filterSuffix}_${getTodayDate()}.xlsx`;
       XLSX.writeFile(wb, filename);
-
-      console.log(`Excel file created: ${filename}`);
-
       toast({
         title: "Success",
         description: `Exported all ${data.length} filtered transaction${data.length !== 1 ? 's' : ''} to Excel`,

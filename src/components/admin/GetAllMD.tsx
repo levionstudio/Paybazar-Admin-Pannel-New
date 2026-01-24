@@ -155,15 +155,7 @@ export default function GetAllMD() {
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
       if (searchQuery) params.append("search", searchQuery);
-      
-      console.log("📥 Fetching MDs with params:", {
-        limit: itemsPerPage,
-        offset: offset,
-        start_date: startDate || 'none',
-        end_date: endDate || 'none',
-        search: searchQuery || 'none',
-        currentPage: currentPage,
-      });
+
       
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?${params.toString()}`,
@@ -176,7 +168,6 @@ export default function GetAllMD() {
       );
 
       if (res.data.status === "success" && res.data.data) {
-        console.log("📦 Response data:", res.data.data);
         
         const distributors = Array.isArray(res.data.data)
           ? res.data.data
@@ -184,12 +175,7 @@ export default function GetAllMD() {
 
         // Get total count from response (backend should provide this)
         const total = res.data.data.total_count || res.data.data.total || distributors.length;
-        
-        console.log("📊 Loaded:", {
-          distributors: distributors.length,
-          total: total,
-          page: currentPage,
-        });
+     
 
         setMasterDistributors(distributors);
         setTotalCount(total);

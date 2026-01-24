@@ -162,8 +162,6 @@ export default function GetAllDistributor() {
             master_distributor_email: md.master_distributor_email,
             master_distributor_phone: md.master_distributor_phone,
           }));
-
-          console.log(`✅ Loaded ${normalized.length} master distributors for dropdown`);
           setMasterDistributors(normalized);
           
           // Auto-select first MD if available
@@ -200,8 +198,6 @@ export default function GetAllDistributor() {
     try {
       const offset = (page - 1) * itemsPerPage;
       
-      console.log(`📄 Fetching page ${page} (offset: ${offset}, limit: ${itemsPerPage}) for MD: ${mdId}`);
-      
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
         {
@@ -218,10 +214,7 @@ export default function GetAllDistributor() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const list = res.data.data.distributors || [];
-        const count = res.data.data.total_count || res.data.data.count || list.length;
-        
-        console.log(`✅ Loaded ${list.length} distributors (Total: ${count})`);
-        
+        const count = res.data.data.total_count || res.data.data.count || list.length;        
         setDistributors(list);
         setTotalCount(count);
       } else {
@@ -245,7 +238,6 @@ export default function GetAllDistributor() {
     if (!token) return [];
 
     try {
-      console.log("📥 Fetching ALL distributors for export...");
       
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/distributor/get/md/${mdId}`,
@@ -263,7 +255,6 @@ export default function GetAllDistributor() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const allData = res.data.data.distributors || [];
-        console.log(`✅ Fetched ${allData.length} distributors for export`);
         return allData;
       }
       return [];

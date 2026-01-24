@@ -167,9 +167,6 @@ const RevertTransactionHistory = () => {
         payload.search_query = searchQuery.trim();
       }
 
-      console.log("Fetching with payload:", payload);
-      console.log("Query params - limit:", limit, "offset:", offset);
-
       // Use query parameters for limit and offset
       const response = await axios.post(
         `${API_BASE_URL}/revert/get/revert/from?limit=${limit}&offset=${offset}`,
@@ -181,8 +178,6 @@ const RevertTransactionHistory = () => {
           },
         }
       );
-
-      console.log("API Response:", response.data);
 
       if (response.data && response.data.status === "success") {
         const transactionList = response.data.data || [];

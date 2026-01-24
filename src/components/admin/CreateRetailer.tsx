@@ -117,7 +117,6 @@ const CreateRetailerPage = () => {
   // Fetch all distributors on mount (without pagination)
   useEffect(() => {
     const fetchDistributors = async () => {
-      console.log("🔄 Fetching distributors...");
       const token = getAuthToken();
       
       if (!token) {
@@ -130,8 +129,6 @@ const CreateRetailerPage = () => {
         navigate("/login");
         return;
       }
-
-      console.log("✅ Auth token found:", token.substring(0, 20) + "...");
       
       let adminId: string;
       try {
@@ -152,7 +149,6 @@ const CreateRetailerPage = () => {
       
       try {
         const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}`;
-        console.log("📡 API URL:", apiUrl);
         
         const res = await axios.get(apiUrl, {
           headers: {
@@ -166,12 +162,10 @@ const CreateRetailerPage = () => {
           },
         });
 
-        console.log("📥 Distributor Response:", res.data);
 
         if (res.data.status === "success" && res.data.data) {
           let distributorList = res.data.data.distributors || [];
-          console.log("📋 Raw distributor list:", distributorList);
-          console.log("📊 Total distributors fetched:", distributorList.length);
+
           
           // Map to correct structure matching Go backend
           distributorList = distributorList.map((d: any) => ({
@@ -183,14 +177,11 @@ const CreateRetailerPage = () => {
           }));
           
           distributorList = distributorList.filter((d: any) => d.distributor_id);
-          console.log("✅ Mapped distributors:", distributorList);
-          console.log("✅ Final distributor count:", distributorList.length);
           
           setDistributors(distributorList);
           
           // Auto-select if only one distributor exists
           if (distributorList.length === 1) {
-            console.log("🎯 Auto-selecting distributor:", distributorList[0].distributor_id);
             const distId = distributorList[0].distributor_id;
             setSelectedDistributorId(distId);
             // Important: Also set in react-hook-form with validation trigger
@@ -240,13 +231,10 @@ const CreateRetailerPage = () => {
   // Log form errors whenever they change
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
-      console.log("⚠️ Form Validation Errors:", errors);
     }
   }, [errors]);
 
   const onSubmit = async (data: RetailerFormData) => {
-    console.log("\n🚀 ===== CREATE RETAILER SUBMISSION =====");
-    console.log("📝 Form Data:", data);
     
     const token = getAuthToken();
     if (!token) {
@@ -259,7 +247,6 @@ const CreateRetailerPage = () => {
       navigate("/login");
       return;
     }
-    console.log("✅ Auth token exists");
 
     if (!selectedDistributorId) {
       console.error("❌ No distributor selected");
@@ -270,10 +257,8 @@ const CreateRetailerPage = () => {
       });
       return;
     }
-    console.log("✅ Selected Distributor ID:", selectedDistributorId);
 
     const selectedDist = distributors.find(d => d.distributor_id === selectedDistributorId);
-    console.log("✅ Selected Distributor Details:", selectedDist);
 
     const payload = {
       distributor_id: selectedDistributorId,
@@ -296,11 +281,7 @@ const CreateRetailerPage = () => {
       ...(data.gst_number ? { gst_number: data.gst_number } : {}),
     };
 
-    console.log("📦 Request Payload:", JSON.stringify(payload, null, 2));
-    console.log("📡 API Endpoint:", `${import.meta.env.VITE_API_BASE_URL}/retailer/create`);
-
     try {
-      console.log("⏳ Sending request...");
       const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/create`,
         payload,
@@ -312,11 +293,7 @@ const CreateRetailerPage = () => {
         }
       );
 
-      console.log("📥 Response Status:", res.status);
-      console.log("📥 Response Data:", res.data);
-
       if (res.data.status === "success" || (res.status >= 200 && res.status < 300)) {
-        console.log("✅ Retailer created successfully!");
         toast({
           title: "Success",
           description: res.data.message || `Retailer ${data.name} created successfully under ${selectedDist?.distributor_name}.`,
@@ -354,7 +331,6 @@ const CreateRetailerPage = () => {
         variant: "destructive",
       });
     }
-    console.log("===== END CREATE RETAILER =====\n");
   }
 
   return (
@@ -406,10 +382,8 @@ const CreateRetailerPage = () => {
                   <Select
                     value={selectedDistributorId || ""}
                     onValueChange={(value) => {
-                      console.log("🎯 Distributor selected:", value);
                       setSelectedDistributorId(value);
-                      setValue("distributor_id", value, { shouldValidate: true });
-                      console.log("✅ Form distributor_id set to:", value);
+                      setValue("distributor_id", value, { shouldValidate: true });             
                     }}
                   >
                     <SelectTrigger className="h-11 bg-white">
@@ -834,7 +808,6 @@ const CreateRetailerPage = () => {
                 type="submit"
                 className="flex-1 h-11 paybazaar-button"
                 disabled={isSubmitting}
-                onClick={() => console.log("🖱️ Submit button clicked!")}
               >
                 {isSubmitting ? (
                   <>

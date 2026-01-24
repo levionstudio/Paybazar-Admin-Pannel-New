@@ -200,7 +200,6 @@ export default function CommissionSplit() {
 
         const mdList = res.data.data.master_distributors || [];
         
-        console.log(`✅ Loaded ${mdList.length} master distributors for dropdown`);
         setMasterDistributors(mdList);
       } catch (error) {
         console.error("Error fetching master distributors:", error);
@@ -239,8 +238,6 @@ export default function CommissionSplit() {
       );
       
       const distList = res.data.data.distributors || [];
-      
-      console.log(`✅ Loaded ${distList.length} distributors for MD: ${mdId}`);
       setDistributors(distList);
     } catch (error) {
       console.error("Error fetching distributors:", error);
@@ -274,8 +271,6 @@ export default function CommissionSplit() {
       );
       
       const retList = res.data.data.retailers || [];
-      
-      console.log(`✅ Loaded ${retList.length} retailers for Distributor: ${distId}`);
       setRetailers(retList);
     } catch (error) {
       console.error("Error fetching retailers:", error);
@@ -294,9 +289,6 @@ export default function CommissionSplit() {
     setAllCommissions([]);
 
     try {
-      console.log("📥 Fetching Commissions:");
-      console.log("User ID:", userId);
-      console.log("URL:", `${API_BASE_URL}/commision/get/commision/${userId}`);
 
       const res = await axios.get(
         `${API_BASE_URL}/commision/get/commision/${userId}`,
@@ -304,18 +296,11 @@ export default function CommissionSplit() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-
-      console.log("📦 Full API Response:", res.data);
-      console.log("📦 Response Data:", res.data.data);
-      
       const commissionsData = res.data.data?.commisions || [];
-      
-      console.log("📊 Commissions Array:", commissionsData);
-      console.log("📊 Number of Commissions:", commissionsData.length);
+
       
       if (commissionsData.length > 0) {
-        console.log("📊 First Commission Sample:", commissionsData[0]);
-        console.log("📊 Commission ID Type:", typeof commissionsData[0].commision_id);
+   
       }
 
       setAllCommissions(commissionsData);
@@ -472,26 +457,13 @@ export default function CommissionSplit() {
      HANDLE EDIT COMMISSION
      ===================== */
   const handleEditCommission = (commission: CommissionData) => {
-    console.log("✏️ Edit Commission Triggered:");
-    console.log("Commission Object:", commission);
-    console.log("Commission ID:", commission.commision_id);
-    console.log("Commission ID Type:", typeof commission.commision_id);
-    console.log("Service:", commission.service);
-    
+
     setIsEditMode(true);
     setEditingCommission(commission);
     setSelectedService(commission.service);
-
-    // Populate fields
     const mdComm = commission.master_distributor_commision.toFixed(2);
     const distComm = commission.distributor_commision.toFixed(2);
     const retComm = commission.retailer_commision.toFixed(2);
-    
-    console.log("Setting Commission Values:");
-    console.log("MD:", mdComm);
-    console.log("Distributor:", distComm);
-    console.log("Retailer:", retComm);
-    
     setMdCommission(mdComm);
     setDistributorCommission(distComm);
     setRetailerCommission(retComm);
@@ -617,10 +589,6 @@ export default function CommissionSplit() {
           retailer_commision: Number(retailerCommission),
         };
 
-        console.log("🟢 CREATE Commission Request:");
-        console.log("URL:", `${API_BASE_URL}/commision/create`);
-        console.log("Payload:", createPayload);
-
         const createResponse = await axios.post(
           `${API_BASE_URL}/commision/create`,
           createPayload,
@@ -628,8 +596,6 @@ export default function CommissionSplit() {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-
-        console.log("✅ CREATE Response:", createResponse.data);
         toast.success(`Commission for ${selectedService} created successfully`);
       } else {
         // UPDATE existing commission
@@ -642,12 +608,6 @@ export default function CommissionSplit() {
           retailer_commision: Number(retailerCommission),
         };
 
-        console.log("🔵 UPDATE Commission Request:");
-        console.log("URL:", `${API_BASE_URL}/commision/update/commision`);
-        console.log("Editing Commission Object:", editingCommission);
-        console.log("Commission ID:", editingCommission.commision_id);
-        console.log("Update Payload:", updatePayload);
-
         const updateResponse = await axios.put(
           `${API_BASE_URL}/commision/update/commision`,
           updatePayload,
@@ -658,8 +618,6 @@ export default function CommissionSplit() {
             },
           }
         );
-
-        console.log("✅ UPDATE Response:", updateResponse.data);
         toast.success(`Commission for ${selectedService} updated successfully`);
       }
 

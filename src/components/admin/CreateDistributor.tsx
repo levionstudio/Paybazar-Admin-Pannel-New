@@ -178,7 +178,6 @@ const CreateDistributorPage = () => {
           // Filter out any invalid entries
           distributors = distributors.filter((md: any) => md.master_distributor_id);
           
-          console.log(`Loaded ${distributors.length} master distributors`);
           setMasterDistributors(distributors);
           
           // Auto-select if only one MD exists
