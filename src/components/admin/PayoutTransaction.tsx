@@ -171,15 +171,16 @@ const PayoutTransactionPage = () => {
       setLoadingUsers(true);
       
       try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+      const response = await axios.get(
+  `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000&page=1`,
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  }
+);
+
 
         if (response.data.status === "success" && response.data.data) {
           const usersList = response.data.data.retailers || [];
@@ -199,37 +200,49 @@ const PayoutTransactionPage = () => {
   }, [adminId, token]);
 
   // Fetch all transactions (no filters in API)
-  const fetchAllTransactions = useCallback(async () => {
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
+const fetchAllTransactions = useCallback(async () => {
+  if (!token) {
+    toast.error("Authentication required");
+    return;
+  }
 
-    setLoadingAllTransactions(true);
-    
-    try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      
-      const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
-      
-      const sorted = list.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+  setLoadingAllTransactions(true);
 
-      setAllTransactionsRaw(sorted);
-      toast.success(`Loaded ${sorted.length} transactions`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to fetch transactions");
-      setAllTransactionsRaw([]);
-    } finally {
-      setLoadingAllTransactions(false);
-    }
-  }, [token]);
+  try {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/payout/get`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    const list: PayoutTransaction[] =
+      response.data?.data?.payout_transactions || [];
+
+    const sorted = list.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    setAllTransactionsRaw(sorted);
+    toast.success(`Loaded ${sorted.length} transactions`);
+  } catch (error: any) {
+    toast.error(
+      error.response?.data?.message || "Failed to fetch transactions"
+    );
+    setAllTransactionsRaw([]);
+  } finally {
+    setLoadingAllTransactions(false);
+  }
+}, [token]);
+// ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
+useEffect(() => {
+  if (token) {
+    fetchAllTransactions();
+  }
+}, [token, fetchAllTransactions]);
+
 
   // Fetch transactions for selected user (no filters in API)
   const fetchUserTransactions = useCallback(async () => {
@@ -720,9 +733,10 @@ const PayoutTransactionPage = () => {
       {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="all" onClick={() => fetchAllTransactions()}>
-            All Transactions
-          </TabsTrigger>
+        <TabsTrigger value="all">
+  All Transactions
+</TabsTrigger>
+
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
         </TabsList>
 

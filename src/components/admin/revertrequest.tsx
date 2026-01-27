@@ -18,7 +18,11 @@ import {
   Phone,
   CreditCard,
   UserCog,
-  IndianRupee
+  IndianRupee,
+  Bus,
+  File,
+  Home,
+  HomeIcon
 } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
@@ -43,6 +47,7 @@ interface UserDetails {
   phone: string;
   userId: string;
   currentBalance: number;
+  Business: string;
 }
 
 export default function RefundRequest() {
@@ -137,6 +142,7 @@ const fetchUsers = async (type: string) => {
         name: md.master_distributor_name,
         phone: md.master_distributor_phone,
         balance: Number(md.wallet_balance || 0),
+        Business: md.business_name,
       }));
     }
 
@@ -146,6 +152,7 @@ const fetchUsers = async (type: string) => {
         name: dist.distributor_name,
         phone: dist.distributor_phone,
         balance: Number(dist.wallet_balance || 0),
+        Business: dist.business_name,
       }));
     }
 
@@ -155,6 +162,7 @@ const fetchUsers = async (type: string) => {
         name: ret.retailer_name,
         phone: ret.retailer_phone,
         balance: Number(ret.wallet_balance || 0),
+        Business: ret.business_name,
       }));
     }
 
@@ -224,6 +232,7 @@ const fetchUserDetails = async (userId: string) => {
         user.master_distributor_name ||
         user.distributor_name ||
         user.retailer_name,
+        Business: user.business_name,
       phone:
         user.master_distributor_phone ||
         user.distributor_phone ||
@@ -475,6 +484,13 @@ const fetchUserDetails = async (userId: string) => {
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-gray-400" />
                       <p className="text-sm font-mono font-semibold text-gray-900">{userDetails.userId}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-gray-600">Business Name</Label>
+                    <div className="flex items-center gap-2">
+                      <HomeIcon className="h-4 w-4 text-gray-400" />
+                      <p className="text-sm font-mono font-semibold text-gray-900">{userDetails.Business}</p>
                     </div>
                   </div>
 
