@@ -51,7 +51,7 @@ interface RevertTransaction {
   revert_on_id: string;
   revert_from_name: string;
   revert_on_name: string;
-
+revert_on_business_name: string;
   amount: number;
   remarks: string;
   created_at: string;
@@ -306,6 +306,7 @@ const RevertTransactionHistory = () => {
         "From Name": record.revert_from_name,
         "To ID": record.revert_on_id,
         "To Name": record.revert_on_name,
+        "Business Name": record.revert_on_business_name,
         "User Type": getUserType(record.revert_on_id),
         "Amount (₹)": record.amount.toFixed(2),
         "Remarks": record.remarks,
@@ -319,6 +320,7 @@ const RevertTransactionHistory = () => {
         "From Name": "TOTAL",
         "To ID": "",
         "To Name": "",
+        "Business Name": "",
         "User Type": "",
         "Amount (₹)": totalAmount.toFixed(2),
         "Remarks": `Total Records: ${totalRecords}`,
@@ -336,6 +338,7 @@ const RevertTransactionHistory = () => {
         { wch: 15 },
         { wch: 25 },
         { wch: 20 },
+        { wch: 25 },
         { wch: 15 },
         { wch: 30 },
         { wch: 20 },
@@ -624,6 +627,9 @@ const RevertTransactionHistory = () => {
                       To
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold uppercase text-muted-foreground whitespace-nowrap px-4">
+                      Business Name
+                      </TableHead>
+                    <TableHead className="text-center text-xs font-semibold uppercase text-muted-foreground whitespace-nowrap px-4">
                       User Type
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold uppercase text-muted-foreground whitespace-nowrap px-4">
@@ -671,6 +677,16 @@ const RevertTransactionHistory = () => {
                           <div className="flex flex-col items-center">
                             <span className="font-semibold text-sm text-foreground">
                               {txn.revert_on_name}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {txn.revert_on_id}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4 px-4 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="font-semibold text-sm text-foreground">
+                              {txn.revert_on_business_name}
                             </span>
                             <span className="text-xs text-muted-foreground font-mono">
                               {txn.revert_on_id}

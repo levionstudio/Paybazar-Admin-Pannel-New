@@ -63,6 +63,8 @@ interface PayoutTransaction {
   partner_request_id: string;
   operator_transaction_id?: string;
   retailer_id: string;
+  retailer_name: string;
+  retailer_business_name: string;
   order_id: string;
   mobile_number: string;
   beneficiary_bank_name: string;
@@ -1206,7 +1208,24 @@ useEffect(() => {
                     </p>
                   </div>
                 )}
-
+                <div >
+                  <Label className="text-gray-600 text-xs">Retailer Name</Label>
+                  <p className="font-mono text-sm font-medium mt-1">
+                    {selectedTransaction.retailer_name}
+                  </p>  
+                </div>
+                <div >
+                  <Label className="text-gray-600 text-xs">Retailer Business Name</Label>
+                  <p className="font-mono text-sm font-medium mt-1">
+                    {selectedTransaction.retailer_business_name}
+                  </p>  
+                </div>
+                <div >
+                  <Label className="text-gray-600 text-xs">Retailer ID</Label>
+                  <p className="font-mono text-sm font-medium mt-1">
+                    {selectedTransaction.retailer_id}
+                  </p>
+                </div>
                 <div>
                   <Label className="text-gray-600 text-xs">Mobile Number</Label>
                   <p className="font-medium mt-1">{selectedTransaction.mobile_number}</p>
