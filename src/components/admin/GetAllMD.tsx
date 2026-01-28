@@ -59,6 +59,7 @@ interface MasterDistributor {
   is_blocked: boolean;
   created_at: string;
   updated_at: string;
+  master_distributor_password: string;
 }
 
 interface DecodedToken {
@@ -69,6 +70,7 @@ interface DecodedToken {
 interface EditFormData {
   master_distributor_name: string;
   master_distributor_phone: string;
+  master_distributor_password: string;
   city: string;
   state: string;
   address: string;
@@ -120,6 +122,7 @@ export default function GetAllMD() {
   const [editFormData, setEditFormData] = useState<EditFormData>({
     master_distributor_name: "",
     master_distributor_phone: "",
+    master_distributor_password: "",
     city: "",
     state: "",
     address: "",
@@ -234,6 +237,7 @@ export default function GetAllMD() {
       setEditFormData({
         master_distributor_name: mdData.master_distributor_name ?? "",
         master_distributor_phone: mdData.master_distributor_phone ?? "",
+        master_distributor_password: mdData.master_distributor_password ?? "",
         city: mdData.city ?? "",
         state: mdData.state ?? "",
         address: mdData.address ?? "",
@@ -282,6 +286,7 @@ export default function GetAllMD() {
     const allowedKeys = [
       "master_distributor_name",
       "master_distributor_phone",
+      "master_distributor_password",
       "city",
       "state",
       "address",
@@ -400,6 +405,7 @@ export default function GetAllMD() {
       const data = masterDistributors.map((md, index) => ({
         "S.No": index + 1,
         "MD ID": md.master_distributor_id,
+        "MD Password": md.master_distributor_password,
         "Name": md.master_distributor_name,
         "Email": md.master_distributor_email,
         "Phone": md.master_distributor_phone,
@@ -636,6 +642,7 @@ export default function GetAllMD() {
                 <TableRow>
                   <TableHead className="text-center">Sl No</TableHead>
                   <TableHead className="text-center">MD ID</TableHead>
+                  <TableHead className="text-center">MD Password</TableHead>
                   <TableHead className="text-center">Name</TableHead>
                   <TableHead className="text-center">Email</TableHead>
                   <TableHead className="text-center">Phone</TableHead>
@@ -655,6 +662,9 @@ export default function GetAllMD() {
                       </TableCell>
                       <TableCell className="text-center font-mono text-xs">
                         {md.master_distributor_id}
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-xs">
+                        {md.master_distributor_password || "N/A"}
                       </TableCell>
                       <TableCell className="font-medium text-center">
                         {md.master_distributor_name || "N/A"}
@@ -840,6 +850,14 @@ export default function GetAllMD() {
                       {selectedMD.master_distributor_id}
                     </p>
                   </div>
+                  {/* <div className="space-y-1"> 
+                    <Label className="text-sm font-medium text-muted-foreground"> 
+                      MD Password
+                    </Label>
+                    <p className="font-mono text-sm font-semibold">
+                      {selectedMD.master_distributor_password || "N/A"}
+                    </p>
+                  </div> */}
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">
                       Email
@@ -913,6 +931,23 @@ export default function GetAllMD() {
                         placeholder="Enter name"
                       />
                     </div>
+                    {/* <div className="space-y-2">
+                      <Label htmlFor="edit-password">
+                        MD Password <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-password"
+                        type="password"
+                        value={editFormData.master_distributor_password}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            master_distributor_password: e.target.value,
+                          })
+                        }
+                        placeholder="Enter password"
+                      />
+                    </div> */}
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-phone">

@@ -56,6 +56,7 @@ interface FundRequest {
   request_status: string;
   remarks: string;
   reject_remarks?: string;
+  business_name: string;
   created_at: string;
   updated_at: string;
 }
@@ -294,6 +295,7 @@ export function FundRequest() {
         "Remarks": req.remarks || "N/A",
         "Status": req.request_status || "N/A",
         "Rejection Reason": req.reject_remarks || "N/A",
+        "Business Name": req.business_name || "N/A",
         "Created At": formatDateTime(req.created_at),
         "Updated At": formatDateTime(req.updated_at),
       }));
@@ -316,6 +318,7 @@ export function FundRequest() {
         "Remarks": "",
         "Status": "",
         "Rejection Reason": "",
+        "Business Name": "",
         "Created At": "",
         "Updated At": "",
       };
@@ -336,6 +339,7 @@ export function FundRequest() {
         { wch: 35 }, // Remarks
         { wch: 12 }, // Status
         { wch: 35 }, // Rejection Reason
+        { wch: 25 }, // Bussiness Name
         { wch: 20 }, // Created At
         { wch: 20 }, // Updated At
       ];
@@ -707,6 +711,7 @@ export function FundRequest() {
                     <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
                       Request To
                     </TableHead>
+                    <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">Business Name</TableHead>
                     <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
                       Amount (₹)
                     </TableHead>
@@ -742,6 +747,7 @@ export function FundRequest() {
                       <TableCell className="py-3 text-center font-mono text-sm text-blue-600">
                         {request.request_to_id}
                       </TableCell>
+                      <TableCell className="py-3 text-center text-sm font-semibold ">{request.business_name || "N/A"}</TableCell>
                       <TableCell className="py-3 text-center text-sm font-semibold text-green-600">
                         ₹{request.amount}
                       </TableCell>

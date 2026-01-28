@@ -131,9 +131,9 @@ const PayoutTransactionPage = () => {
   const getTransferTypeName = (transferType: string) => {
     switch (transferType) {
       case "5":
-        return "NEFT";
-      case "6":
         return "IMPS";
+      case "6":
+        return "NEFT";
       default:
         return transferType;
     }

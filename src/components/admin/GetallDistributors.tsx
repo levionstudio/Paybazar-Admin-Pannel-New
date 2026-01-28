@@ -35,6 +35,7 @@ interface MasterDistributor {
 
 interface Distributor {
   distributor_id: string;
+  distributor_password: string;
   master_distributor_id: string;
   distributor_name: string;
   distributor_email: string;
@@ -64,6 +65,7 @@ interface DecodedToken {
 
 interface EditFormData {
   distributor_id: string;
+  distributor_password: string;
   distributor_name: string;
   distributor_phone: string;
   city: string;
@@ -107,6 +109,7 @@ export default function GetAllDistributor() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
     distributor_id: "",
+    distributor_password: "",
     distributor_name: "",
     distributor_phone: "",
     city: "",
@@ -309,6 +312,7 @@ export default function GetAllDistributor() {
 
       setEditFormData({
         distributor_id: distData.distributor_id,
+        distributor_password: distData.distributor_password ?? "",
         distributor_name: distData.distributor_name ?? "",
         distributor_phone: distData.distributor_phone ?? "",
         city: distData.city ?? "",
@@ -358,6 +362,7 @@ export default function GetAllDistributor() {
 
     const allowedKeys = [
       "distributor_name",
+      "distributor_password",
       "distributor_phone",
       "city",
       "state",
@@ -490,6 +495,7 @@ export default function GetAllDistributor() {
       const data = allDistributors.map((dist, index) => ({
         "S.No": index + 1,
         "Distributor ID": dist.distributor_id,
+        "Distributor Password": dist.distributor_password,
         "Master Distributor ID": dist.master_distributor_id,
         "MD Name": selectedMDInfo?.master_distributor_name || "N/A",
         "Name": dist.distributor_name,
@@ -518,6 +524,7 @@ export default function GetAllDistributor() {
       ws["!cols"] = [
         { wch: 6 },  // S.No
         { wch: 25 }, // Distributor ID
+        { wch: 25 }, // Distributor Password
         { wch: 25 }, // MD ID
         { wch: 25 }, // MD Name
         { wch: 25 }, // Name
@@ -674,6 +681,7 @@ export default function GetAllDistributor() {
                       <TableHead className="text-center font-semibold">Sl No</TableHead>
                       <TableHead className="text-center font-semibold">MD ID</TableHead>
                       <TableHead className="text-center font-semibold">Distributor ID</TableHead>
+                      <TableHead className="text-center font-semibold">Distributor Password</TableHead>
                       <TableHead className="text-center font-semibold">Name</TableHead>
                       <TableHead className="text-center font-semibold">Email</TableHead>
                       <TableHead className="text-center font-semibold">Phone</TableHead>
@@ -695,6 +703,9 @@ export default function GetAllDistributor() {
                           </TableCell>
                           <TableCell className="font-mono text-center text-xs">
                             {d.distributor_id}
+                          </TableCell>
+                          <TableCell className="font-mono text-center text-xs">
+                            {d.distributor_password || "N/A"}
                           </TableCell>
                           <TableCell className="font-medium text-center">
                             {d.distributor_name || "N/A"}
@@ -831,6 +842,10 @@ export default function GetAllDistributor() {
                     <Label className="text-sm font-medium text-muted-foreground">Distributor ID</Label>
                     <p className="font-mono text-sm font-semibold">{selectedDistributor.distributor_id}</p>
                   </div>
+                  {/* <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Distributor Password</Label>
+                    <p className="font-mono text-sm font-semibold">{selectedDistributor.distributor_password || "N/A"}</p>
+                  </div> */}
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">Email</Label>
                     <p className="text-sm">{selectedDistributor.distributor_email}</p>
@@ -889,6 +904,23 @@ export default function GetAllDistributor() {
                         placeholder="Enter name"
                       />
                     </div>
+                    {/* <div className="space-y-2">
+                      <Label htmlFor="edit-password">
+                        Distributor Password <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-password"
+                        type="password"
+                        value={editFormData.distributor_password}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            distributor_password: e.target.value,
+                          })
+                        }
+                        placeholder="Enter password"
+                      />
+                    </div> */}
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-phone">

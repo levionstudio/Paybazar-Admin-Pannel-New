@@ -51,6 +51,7 @@ interface RevertTransaction {
   revert_on_id: string;
   revert_from_name: string;
   revert_on_name: string;
+
   amount: number;
   remarks: string;
   created_at: string;

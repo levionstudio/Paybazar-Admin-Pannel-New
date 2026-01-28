@@ -55,18 +55,19 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
+
 interface DecodedToken {
-  data: {
-    admin_id: string;
-  };
+  admin_id: string;
   exp: number;
 }
 
-interface User {
-  admin_id: string;
-  user_name: string;
-  user_email?: string;
-  user_phone?: string;
+interface Retailer {
+  retailer_id: string;
+  retailer_name: string;
+  retailer_email?: string;
+  retailer_phone?: string;
+  is_blocked: boolean;
+  wallet_balance: number;
 }
 
 interface PayoutTransaction {
@@ -86,7 +87,7 @@ interface PayoutTransaction {
 const PayoutTransactionPage = () => {
   const token = localStorage.getItem("authToken");
   const [adminId, setAdminId] = useState("");
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Retailer[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [transactions, setTransactions] = useState<PayoutTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<PayoutTransaction[]>([]);
@@ -109,7 +110,7 @@ const PayoutTransactionPage = () => {
     if (token) {
       try {
         const decoded: DecodedToken = jwtDecode(token);
-        setAdminId(decoded?.data?.admin_id || "");
+        setAdminId(decoded?.admin_id || "");
       } catch (error) {
         toast.error("Invalid token. Please log in again.");
       }
@@ -124,18 +125,18 @@ const PayoutTransactionPage = () => {
       setLoadingUsers(true);
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/admin/get/user/${adminId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
 
-        if (response.data.status === "success" && response.data.data) {
-          const usersList = Array.isArray(response.data.data)
-            ? response.data.data
-            : response.data.data.users || [];
-          setUsers(usersList);
-        }
+       if (response.data.status === "success") {
+  const retailers: User[] = response.data.data?.retailers ?? [];
+  setUsers(retailers);
+}
+
+        
       } catch (error) {
         console.error("Error fetching users:", error);
         toast.error("Failed to load users");
@@ -267,8 +268,8 @@ const PayoutTransactionPage = () => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Payout Transactions");
 
-      const selectedUser = users.find(u => u.admin_id === selectedUserId);
-      const userName = selectedUser?.user_name || "User";
+      const selectedUser = users.find(u => u.retailer_id === selectedUserId);
+      const userName = selectedUser?.retailer_name || "User";
       const timestamp = new Date().toISOString().slice(0, 10);
       
       XLSX.writeFile(workbook, `Payout_Transactions_${userName}_${timestamp}.xlsx`);
@@ -407,9 +408,9 @@ const PayoutTransactionPage = () => {
                   </div>
                 ) : (
                   users.map((user) => (
-                    <SelectItem key={user.admin_id} value={user.admin_id}>
-                      {user.user_name}
-                      {user.user_email && ` (${user.user_email})`}
+                    <SelectItem key={user.retailer_id} value={user.retailer_id}>
+                      {user.retailer_name}
+                      {user.retailer_email && ` (${user.retailer_email})`}
                     </SelectItem>
                   ))
                 )}

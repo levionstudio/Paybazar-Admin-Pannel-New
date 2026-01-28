@@ -48,6 +48,7 @@ export function LoginPage() {
           admin_password: password,
         }),
       });
+      console.log(response);
 
       const data = await response.json();
 

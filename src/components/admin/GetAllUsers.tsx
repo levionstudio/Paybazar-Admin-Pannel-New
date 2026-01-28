@@ -36,6 +36,7 @@ interface Distributor {
 
 interface Retailer {
   retailer_id: string;
+  retailer_password: string;
   distributor_id: string;
   retailer_name: string;
   retailer_phone: string;
@@ -67,6 +68,7 @@ interface DecodedToken {
 
 interface EditFormData {
   retailer_id: string;
+  retailer_password: string;
   retailer_name: string;
   retailer_phone: string;
   city: string;
@@ -111,6 +113,7 @@ export default function GetAllRetailers() {
   const [isFetchingProfile, setIsFetchingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
     retailer_id: "",
+    retailer_password: "",
     retailer_name: "",
     retailer_phone: "",
     city: "",
@@ -314,6 +317,7 @@ export default function GetAllRetailers() {
 
       setEditFormData({
         retailer_id: retData.retailer_id,
+        retailer_password: retData.retailer_password ?? "",
         retailer_name: retData.retailer_name ?? "",
         retailer_phone: retData.retailer_phone ?? "",
         city: retData.city ?? "",
@@ -363,6 +367,7 @@ export default function GetAllRetailers() {
 
     const allowedKeys = [
       "retailer_name",
+      "retailer_password",
       "retailer_phone",
       "city",
       "state",
@@ -504,6 +509,7 @@ export default function GetAllRetailers() {
         "S.No": index + 1,
         "Distributor ID": r.distributor_id,
         "Retailer ID": r.retailer_id,
+        "Retailer Password": r.retailer_password,
         "Name": r.retailer_name,
         "Email": r.retailer_email,
         "Phone": r.retailer_phone,
@@ -531,6 +537,7 @@ export default function GetAllRetailers() {
         { wch: 6 },  // S.No
         { wch: 25 }, // Distributor ID
         { wch: 25 }, // Retailer ID
+        { wch: 25 }, // Retailer Password
         { wch: 25 }, // Name
         { wch: 30 }, // Email
         { wch: 15 }, // Phone
@@ -692,6 +699,7 @@ export default function GetAllRetailers() {
                       <TableHead className="text-center font-semibold">Sl No</TableHead>
                       <TableHead className="text-center font-semibold">Dist ID</TableHead>
                       <TableHead className="text-center font-semibold">Retailer ID</TableHead>
+                      <TableHead className="text-center font-semibold">Retailer Password</TableHead>
                       <TableHead className="text-center font-semibold">Name</TableHead>
                       <TableHead className="text-center font-semibold">Email</TableHead>
                       <TableHead className="text-center font-semibold">Phone</TableHead>
@@ -713,6 +721,9 @@ export default function GetAllRetailers() {
                           </TableCell>
                           <TableCell className="font-mono text-center text-xs">
                             {r.retailer_id}
+                          </TableCell>
+                          <TableCell className="font-mono text-center text-xs">
+                            {r.retailer_password || "N/A"}                          
                           </TableCell>
                           <TableCell className="font-medium text-center">
                             {r.retailer_name || "N/A"}
@@ -841,6 +852,14 @@ export default function GetAllRetailers() {
                     <Label className="text-sm font-medium text-muted-foreground">Retailer ID</Label>
                     <p className="font-mono text-sm font-semibold">{selectedRetailer.retailer_id}</p>
                   </div>
+                  {/* <div className="space-y-1"> 
+                    <Label className="text-sm font-medium text-muted-foreground"> 
+                      Retailer Password
+                    </Label>
+                    <p className="font-mono text-sm font-semibold">
+                      {selectedRetailer.retailer_password || "N/A"}
+                    </p>
+                  </div> */}
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">Email</Label>
                     <p className="text-sm">{selectedRetailer.retailer_email}</p>
@@ -907,6 +926,23 @@ export default function GetAllRetailers() {
                         placeholder="Enter name"
                       />
                     </div>
+                    {/* <div className="space-y-2">
+                      <Label htmlFor="edit-password">
+                        Retailer Password <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-password"
+                        type="password"
+                        value={editFormData.retailer_password}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            retailer_password: e.target.value,
+                          })
+                        }
+                        placeholder="Enter password"
+                      />    
+                      </div> */}
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-phone">
