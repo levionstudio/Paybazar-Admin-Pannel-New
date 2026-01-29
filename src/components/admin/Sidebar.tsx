@@ -40,8 +40,10 @@ const navigation = [
 const transactionLogsSubMenu = [
   { name: "Admin Transaction", href: "/admin/logs", icon: FileText },
   { name: "Payout Transaction", href: "/admin/logs/payout", icon: FileText },
+  { name :"Mobile Recharge Transaction", href: "/admin/logs/mobile-recharge", icon: FileText },
   { name: "Revert History", href: "/admin/funds/revert/history", icon: History },
   {name: "Tds Transaction", href: "/admin/logs/tds", icon: FileText},
+
 ];
 
 const navigations = [

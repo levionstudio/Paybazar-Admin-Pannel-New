@@ -36,6 +36,8 @@ import Tickets from "./components/admin/Tickets";
 import { UserHierarchySwap } from "./components/admin/Swap";
 import ApiManagement from "./components/admin/ApiDown";
 import TDSCommissionPage from "./components/admin/Tds";
+import AdminMobileRechargeReport from "./components/admin/RechargeTransactionLogs";
+import MobileRechargeTransactionPage from "./components/admin/RechargeTransactionLogs";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +115,7 @@ const App = () => {
               <Route path="/admin/funds/revert" element={<RefundRequest />} />
               <Route path="/admin/funds/refund" element={<RefundPage />} />
               <Route path="/admin/funds/revert/history" element={<RevertHistoryPage />} />
+              <Route path="/admin/logs/mobile-recharge" element={<MobileRechargeTransactionPage />} />
               <Route path="/admin/Users/swap" element={<UserHierarchySwap />} />
               <Route path="/admin/api/down" element={<ApiManagement />} />
             </Route>
