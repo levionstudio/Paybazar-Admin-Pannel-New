@@ -59,6 +59,7 @@ const create = [
 
 const bank = [
   { name: "Admin Bank Account", href: "/admin/bank/account", icon: Building2 },
+  { name: "Retailer Bank Account", href: "/admin/bank/retailer", icon: Building2 },
 ];
 
 const commission = [
@@ -490,7 +491,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                         : "text-muted-foreground group-hover:text-secondary-foreground"
                     )}
                   />
-                  Admin Bank
+                  Banks
                 </div>
                 {bankExpanded ? (
                   <ChevronDown className="h-4 w-4" />

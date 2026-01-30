@@ -38,6 +38,7 @@ import ApiManagement from "./components/admin/ApiDown";
 import TDSCommissionPage from "./components/admin/Tds";
 import AdminMobileRechargeReport from "./components/admin/RechargeTransactionLogs";
 import MobileRechargeTransactionPage from "./components/admin/RechargeTransactionLogs";
+import RetailerBankAccount from "./components/admin/AdminBankForRetailer";
 
 const queryClient = new QueryClient();
 
@@ -101,6 +102,7 @@ const App = () => {
               <Route path="info/distributor" element={<GetAllDistributor />} />
               <Route path="info/user" element={<GetAllUsers />} />
               <Route path="bank/account" element={<AdminBankAccount />} />
+              <Route path="bank/retailer" element={<RetailerBankAccount />} />
               <Route path = "commission/split" element={<CommissionSplit />} />
               {/* <Route path="logs/t" element={<TransactionLogs />} /> */}
               <Route path="commission" element={<CommissionSystem />} />
