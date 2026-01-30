@@ -42,7 +42,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, RefreshCw, Eye, Download, Search, Calendar, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, RefreshCw, Eye, Download, Search, Calendar, Check, ChevronsUpDown, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DecodedToken {
@@ -61,19 +61,19 @@ interface User {
 interface MobileRechargeTransaction {
   mobile_recharge_transaction_id: number;
   retailer_id: string;
-  partner_request_id: string;
-  mobile_number: string;
+  mobile_number: string;   // ✅ FIX
   operator_code: number;
   operator_name: string;
+  amount: number;
   circle_code: number;
   circle_name: string;
-  amount: number;
   recharge_type: string;
+  partner_request_id: string;
+  created_at: string;
   commision: number;
   status: string;
-  created_at: string;
-  [key: string]: any;
 }
+
 
 const MobileRechargeTransactionPage = () => {
   const token = localStorage.getItem("authToken");
@@ -127,6 +127,8 @@ const MobileRechargeTransactionPage = () => {
         return "Prepaid";
       case "2":
         return "Postpaid";
+      case "3":
+        return "DTH";
       default:
         return rechargeType;
     }
@@ -192,45 +194,53 @@ const MobileRechargeTransactionPage = () => {
   }, [adminId, token]);
 
   // Fetch all transactions (no filters in API)
-  const fetchAllTransactions = useCallback(async () => {
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
+const fetchAllTransactions = useCallback(async () => {
+  if (!token) {
+    toast.error("Authentication required");
+    return;
+  }
 
-    setLoadingAllTransactions(true);
+  setLoadingAllTransactions(true);
 
-    try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/mobile_recharge/get/all`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+  try {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/mobile_recharge/get/admin`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
-      const list: MobileRechargeTransaction[] =
-        response.data?.data?.recharges || [];
-        console.log("List:", list);
+    console.log("API Status Code:", response.status); // ✅ FIX
+    console.log("API Response Body:", response.data);
 
-      const sorted = list.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-      );
+    const list: MobileRechargeTransaction[] =
+      response.data?.data?.recharges ?? [];
 
-      setAllTransactionsRaw(sorted);
-      toast.success(`Loaded ${sorted.length} transactions`);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to fetch transactions"
-      );
-      setAllTransactionsRaw([]);
-    } finally {
-      setLoadingAllTransactions(false);
-    }
-  }, [token]);
+    const sorted = list.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
 
-  // ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
+    setAllTransactionsRaw(sorted);
+    toast.success(`Loaded ${sorted.length} transactions`);
+  } catch (error: any) {
+    console.error("Error fetching transactions:", error);
+
+    // 👇 If you want status code in error case
+    console.log("Error status:", error.response?.status);
+
+    toast.error(
+      error.response?.data?.message || "Failed to fetch transactions"
+    );
+    setAllTransactionsRaw([]);
+  } finally {
+    setLoadingAllTransactions(false);
+  }
+}, [token]);
+
+
+  // Fetch all transactions on page load
   useEffect(() => {
     if (token) {
       fetchAllTransactions();
@@ -251,7 +261,12 @@ const MobileRechargeTransactionPage = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      console.log("User transactions API Response:", response.data);
+      
       const list: MobileRechargeTransaction[] = response.data?.data?.recharges || [];
+
+      console.log("Parsed user recharges list:", list);
+      console.log("First user transaction (if exists):", list[0]);
 
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -260,6 +275,7 @@ const MobileRechargeTransactionPage = () => {
       setUserTransactionsRaw(sorted);
       toast.success(`Loaded ${sorted.length} transactions`);
     } catch (error: any) {
+      console.error("Error fetching user transactions:", error);
       toast.error(error.response?.data?.message || "Failed to fetch transactions");
       setUserTransactionsRaw([]);
     } finally {
@@ -305,10 +321,10 @@ const MobileRechargeTransactionPage = () => {
     if (allSearchTerm.trim()) {
       const s = allSearchTerm.toLowerCase();
       filtered = filtered.filter((t) =>
-        t.mobile_number.includes(s) ||
+        t.partner_request_id.toLowerCase().includes(s) ||
+t.mobile_number.includes(s)||
         t.operator_name.toLowerCase().includes(s) ||
         t.circle_name.toLowerCase().includes(s) ||
-        t.partner_request_id.toLowerCase().includes(s) ||
         t.retailer_id.toLowerCase().includes(s)
       );
     }
@@ -345,10 +361,10 @@ const MobileRechargeTransactionPage = () => {
     if (userSearchTerm.trim()) {
       const s = userSearchTerm.toLowerCase();
       filtered = filtered.filter((t) =>
-        t.mobile_number.includes(s) ||
+        t.partner_request_id.toLowerCase().includes(s) ||
+t.mobile_number.includes(s)||
         t.operator_name.toLowerCase().includes(s) ||
-        t.circle_name.toLowerCase().includes(s) ||
-        t.partner_request_id.toLowerCase().includes(s)
+        t.circle_name.toLowerCase().includes(s)
       );
     }
 
@@ -391,7 +407,7 @@ const MobileRechargeTransactionPage = () => {
         "Transaction ID": t.mobile_recharge_transaction_id,
         "Partner Request ID": t.partner_request_id,
         "Retailer ID": t.retailer_id,
-        "Mobile Number": t.mobile_number,
+"Mobile Number": `'${t.mobile_number}`,
         "Operator": t.operator_name,
         "Circle": t.circle_name,
         "Amount (₹)": t.amount.toFixed(2),
@@ -424,17 +440,17 @@ const MobileRechargeTransactionPage = () => {
 
       ws["!cols"] = [
         { wch: 6 }, { wch: 18 }, { wch: 15 }, { wch: 38 },
-        { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
-        { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }
+        { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 20 },
+        { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }
       ];
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Recharges");
+      XLSX.utils.book_append_sheet(wb, ws, "Recharge Transactions");
 
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = isUserData 
-        ? `Retailer_${selectedUserId}_MobileRecharges_${timestamp}.xlsx`
-        : `All_MobileRecharge_Transactions_${timestamp}.xlsx`;
+        ? `Retailer_${selectedUserId}_Recharge_Transactions_${timestamp}.xlsx`
+        : `All_Mobile_Recharge_Transactions_${timestamp}.xlsx`;
       
       XLSX.writeFile(wb, filename);
       toast.success(`Exported ${allData.length} transactions successfully`);
@@ -444,6 +460,10 @@ const MobileRechargeTransactionPage = () => {
   };
 
   const getStatusBadge = (status: string) => {
+    if (!status) {
+      return <Badge variant="outline">Unknown</Badge>;
+    }
+    
     const upperStatus = status.toUpperCase();
     switch (upperStatus) {
       case "SUCCESS":
@@ -508,6 +528,7 @@ const MobileRechargeTransactionPage = () => {
     if (transactions.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
+          <Smartphone className="w-16 h-16 text-gray-400 mb-4" />
           <p className="text-lg font-semibold text-gray-900">No transactions found</p>
           <p className="text-sm text-gray-600">Try adjusting your filters</p>
         </div>
@@ -524,6 +545,9 @@ const MobileRechargeTransactionPage = () => {
                   Date & Time
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  Transaction ID
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Mobile Number
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
@@ -534,9 +558,6 @@ const MobileRechargeTransactionPage = () => {
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Amount (₹)
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Commission (₹)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Status
@@ -557,20 +578,20 @@ const MobileRechargeTransactionPage = () => {
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900 whitespace-nowrap">
                     {formatDate(tx.created_at)}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-center font-mono text-sm text-gray-900 whitespace-nowrap">
+                  <TableCell className="py-3 px-4 text-center font-mono text-xs text-gray-900 whitespace-nowrap">
+                    {tx.mobile_recharge_transaction_id}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center text-sm text-gray-900 font-medium">
                     {tx.mobile_number}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
                     {tx.operator_name}
                   </TableCell>
-                  <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
+                  <TableCell className="py-3 px-4 text-center text-sm text-gray-600">
                     {tx.circle_name}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
                     ₹{formatAmount(tx.amount)}
-                  </TableCell>
-                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-blue-600 whitespace-nowrap">
-                    ₹{formatAmount(tx.commision)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
                     {getStatusBadge(tx.status)}
@@ -668,7 +689,9 @@ const MobileRechargeTransactionPage = () => {
       {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="all">All Transactions</TabsTrigger>
+          <TabsTrigger value="all">
+            All Transactions
+          </TabsTrigger>
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
         </TabsList>
 
@@ -1064,7 +1087,7 @@ const MobileRechargeTransactionPage = () => {
 
                 <div>
                   <Label className="text-gray-600 text-xs">Mobile Number</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.mobile_number}</p>
+                  <p className="font-medium text-lg mt-1">{selectedTransaction.mobile_number}</p>
                 </div>
 
                 <div>
