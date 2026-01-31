@@ -39,6 +39,7 @@ import TDSCommissionPage from "./components/admin/Tds";
 import AdminMobileRechargeReport from "./components/admin/RechargeTransactionLogs";
 import MobileRechargeTransactionPage from "./components/admin/RechargeTransactionLogs";
 import RetailerBankAccount from "./components/admin/AdminBankForRetailer";
+import DTHRechargeTransactionPage from "./components/admin/DthTrasactionLogs";
 
 const queryClient = new QueryClient();
 
@@ -118,6 +119,7 @@ const App = () => {
               <Route path="/admin/funds/refund" element={<RefundPage />} />
               <Route path="/admin/funds/revert/history" element={<RevertHistoryPage />} />
               <Route path="/admin/logs/mobile-recharge" element={<MobileRechargeTransactionPage />} />
+              <Route path="/admin/logs/dth" element={<DTHRechargeTransactionPage/>} />
               <Route path="/admin/Users/swap" element={<UserHierarchySwap />} />
               <Route path="/admin/api/down" element={<ApiManagement />} />
             </Route>
