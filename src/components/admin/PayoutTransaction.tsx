@@ -58,26 +58,27 @@ interface User {
   [key: string]: any;
 }
 
+// ✅ CORRECTED: Matches Go backend GetAllPayoutTransactionsResponseModel
 interface PayoutTransaction {
   payout_transaction_id: string;
+  operator_transaction_id: string | null;
   partner_request_id: string;
-  operator_transaction_id?: string;
+  order_id: string | null;
   retailer_id: string;
   retailer_name: string;
   retailer_business_name: string;
-  order_id: string;
   mobile_number: string;
-  beneficiary_bank_name: string;
+  bank_name: string;  // ✅ Changed from beneficiary_bank_name
   beneficiary_name: string;
-  beneficiary_account_number: string;
-  beneficiary_ifsc_code: string;
+  account_number: string;  // ✅ Changed from beneficiary_account_number
+  ifsc_code: string;  // ✅ Changed from beneficiary_ifsc_code
   amount: number;
   transfer_type: string;
-  admin_commision?: number;
-  master_distributor_commision?: number;
-  distributor_commision?: number;
-  retailer_commision?: number;
-  payout_transaction_status: string;
+  transaction_status: string;  // ✅ Changed from payout_transaction_status
+  admin_commision: number;
+  master_distributor_commision: number;
+  distributor_commision: number;
+  retailer_commision: number;
   created_at: string;
   updated_at: string;
 }
@@ -173,16 +174,15 @@ const PayoutTransactionPage = () => {
       setLoadingUsers(true);
       
       try {
-      const response = await axios.get(
-  `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000&page=1`,
-  {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  }
-);
-
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000&page=1`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
         if (response.data.status === "success" && response.data.data) {
           const usersList = response.data.data.retailers || [];
@@ -202,49 +202,49 @@ const PayoutTransactionPage = () => {
   }, [adminId, token]);
 
   // Fetch all transactions (no filters in API)
-const fetchAllTransactions = useCallback(async () => {
-  if (!token) {
-    toast.error("Authentication required");
-    return;
-  }
+  const fetchAllTransactions = useCallback(async () => {
+    if (!token) {
+      toast.error("Authentication required");
+      return;
+    }
 
-  setLoadingAllTransactions(true);
+    setLoadingAllTransactions(true);
 
-  try {
-    const response = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/payout/get`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-    const list: PayoutTransaction[] =
-      response.data?.data?.payout_transactions || [];
+      // ✅ CORRECTED: Backend returns "transactions" not "payout_transactions"
+      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
 
-    const sorted = list.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-    );
+      const sorted = list.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
 
-    setAllTransactionsRaw(sorted);
-    toast.success(`Loaded ${sorted.length} transactions`);
-  } catch (error: any) {
-    toast.error(
-      error.response?.data?.message || "Failed to fetch transactions"
-    );
-    setAllTransactionsRaw([]);
-  } finally {
-    setLoadingAllTransactions(false);
-  }
-}, [token]);
-// ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
-useEffect(() => {
-  if (token) {
-    fetchAllTransactions();
-  }
-}, [token, fetchAllTransactions]);
+      setAllTransactionsRaw(sorted);
+      toast.success(`Loaded ${sorted.length} transactions`);
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Failed to fetch transactions"
+      );
+      setAllTransactionsRaw([]);
+    } finally {
+      setLoadingAllTransactions(false);
+    }
+  }, [token]);
 
+  // ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
+  useEffect(() => {
+    if (token) {
+      fetchAllTransactions();
+    }
+  }, [token, fetchAllTransactions]);
 
   // Fetch transactions for selected user (no filters in API)
   const fetchUserTransactions = useCallback(async () => {
@@ -260,7 +260,8 @@ useEffect(() => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      const list: PayoutTransaction[] = response.data?.data?.payout_transactions || [];
+      // ✅ CORRECTED: Backend returns "transactions" not "payout_transactions"
+      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
 
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -303,10 +304,10 @@ useEffect(() => {
       });
     }
 
-    // Status filter
+    // Status filter - ✅ Changed to transaction_status
     if (allStatusFilter && allStatusFilter !== "ALL") {
       filtered = filtered.filter((t) => 
-        t.payout_transaction_status.toUpperCase() === allStatusFilter.toUpperCase()
+        t.transaction_status.toUpperCase() === allStatusFilter.toUpperCase()
       );
     }
 
@@ -314,10 +315,10 @@ useEffect(() => {
     if (allSearchTerm.trim()) {
       const s = allSearchTerm.toLowerCase();
       filtered = filtered.filter((t) =>
-        t.order_id.toLowerCase().includes(s) ||
+        (t.order_id && t.order_id.toLowerCase().includes(s)) ||
         t.mobile_number.includes(s) ||
         t.beneficiary_name.toLowerCase().includes(s) ||
-        t.beneficiary_account_number.includes(s) ||
+        t.account_number.includes(s) ||
         (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
       );
     }
@@ -343,10 +344,10 @@ useEffect(() => {
       });
     }
 
-    // Status filter
+    // Status filter - ✅ Changed to transaction_status
     if (userStatusFilter && userStatusFilter !== "ALL") {
       filtered = filtered.filter((t) => 
-        t.payout_transaction_status.toUpperCase() === userStatusFilter.toUpperCase()
+        t.transaction_status.toUpperCase() === userStatusFilter.toUpperCase()
       );
     }
 
@@ -354,10 +355,10 @@ useEffect(() => {
     if (userSearchTerm.trim()) {
       const s = userSearchTerm.toLowerCase();
       filtered = filtered.filter((t) =>
-        t.order_id.toLowerCase().includes(s) ||
+        (t.order_id && t.order_id.toLowerCase().includes(s)) ||
         t.mobile_number.includes(s) ||
         t.beneficiary_name.toLowerCase().includes(s) ||
-        t.beneficiary_account_number.includes(s) ||
+        t.account_number.includes(s) ||
         (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
       );
     }
@@ -398,16 +399,16 @@ useEffect(() => {
       const data = allData.map((t, i) => ({
         "S.No": i + 1,
         "Date & Time": formatDate(t.created_at),
-        "Order ID": t.order_id,
+        "Order ID": t.order_id || "-",
         "Transaction ID": t.operator_transaction_id || "-",
         "Mobile": t.mobile_number,
         "Beneficiary Name": t.beneficiary_name,
-        "Bank": t.beneficiary_bank_name,
-        "Account Number": t.beneficiary_account_number,
-        "IFSC": t.beneficiary_ifsc_code,
+        "Bank": t.bank_name,
+        "Account Number": t.account_number,
+        "IFSC": t.ifsc_code,
         "Amount (₹)": t.amount.toFixed(2),
         "Transfer Type": getTransferTypeName(t.transfer_type),
-        "Status": t.payout_transaction_status,
+        "Status": t.transaction_status,
         "Operator TXN ID": t.operator_transaction_id || "N/A",
         "Admin Commission": t.admin_commision || 0,
         "MD Commission": t.master_distributor_commision || 0,
@@ -619,7 +620,7 @@ useEffect(() => {
             <TableBody>
               {paginatedTransactions.map((tx, idx) => (
                 <TableRow
-                  key={tx.operator_transaction_id}
+                  key={tx.payout_transaction_id}
                   className={`border-b hover:bg-gray-50 ${
                     idx % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                   }`}
@@ -628,7 +629,7 @@ useEffect(() => {
                     {formatDate(tx.created_at)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-mono text-xs text-gray-900 whitespace-nowrap">
-                    {tx.operator_transaction_id|| "-"}
+                    {tx.operator_transaction_id || "-"}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
                     {tx.mobile_number}
@@ -640,7 +641,7 @@ useEffect(() => {
                     ₹{formatAmount(tx.amount)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
-                    {getStatusBadge(tx.payout_transaction_status)}
+                    {getStatusBadge(tx.transaction_status)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
                     <Button
@@ -735,10 +736,9 @@ useEffect(() => {
       {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-        <TabsTrigger value="all">
-  All Transactions
-</TabsTrigger>
-
+          <TabsTrigger value="all">
+            All Transactions
+          </TabsTrigger>
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
         </TabsList>
 
@@ -1117,7 +1117,7 @@ useEffect(() => {
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-lg">Update Transaction Status</h3>
                     <div className="text-sm">
-                      Current: {getStatusBadge(selectedTransaction.payout_transaction_status)}
+                      Current: {getStatusBadge(selectedTransaction.transaction_status)}
                     </div>
                   </div>
                   
@@ -1139,7 +1139,7 @@ useEffect(() => {
                   <div className="grid grid-cols-3 gap-3">
                     <Button
                       onClick={() => handleUpdateStatus("PENDING")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "PENDING"}
+                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "PENDING"}
                       className="bg-yellow-600 hover:bg-yellow-700"
                     >
                       {updatingStatus ? (
@@ -1151,7 +1151,7 @@ useEffect(() => {
                     </Button>
                     <Button
                       onClick={() => handleUpdateStatus("SUCCESS")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "SUCCESS"}
+                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "SUCCESS"}
                       className="bg-green-600 hover:bg-green-700"
                     >
                       {updatingStatus ? (
@@ -1163,7 +1163,7 @@ useEffect(() => {
                     </Button>
                     <Button
                       onClick={() => handleUpdateStatus("FAILED")}
-                      disabled={updatingStatus || selectedTransaction.payout_transaction_status.toUpperCase() === "FAILED"}
+                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "FAILED"}
                       variant="destructive"
                     >
                       {updatingStatus ? (
@@ -1182,14 +1182,14 @@ useEffect(() => {
                 <div className="col-span-2">
                   <Label className="text-gray-600 text-xs">Payout Transaction ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.operator_transaction_id}
+                    {selectedTransaction.payout_transaction_id}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-gray-600 text-xs">Order ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.order_id}
+                    {selectedTransaction.order_id || "-"}
                   </p>
                 </div>
 
@@ -1208,19 +1208,19 @@ useEffect(() => {
                     </p>
                   </div>
                 )}
-                <div >
+                <div>
                   <Label className="text-gray-600 text-xs">Retailer Name</Label>
                   <p className="font-mono text-sm font-medium mt-1">
                     {selectedTransaction.retailer_name}
                   </p>  
                 </div>
-                <div >
+                <div>
                   <Label className="text-gray-600 text-xs">Retailer Business Name</Label>
                   <p className="font-mono text-sm font-medium mt-1">
                     {selectedTransaction.retailer_business_name}
                   </p>  
                 </div>
-                <div >
+                <div>
                   <Label className="text-gray-600 text-xs">Retailer ID</Label>
                   <p className="font-mono text-sm font-medium mt-1">
                     {selectedTransaction.retailer_id}
@@ -1238,20 +1238,20 @@ useEffect(() => {
 
                 <div>
                   <Label className="text-gray-600 text-xs">Bank Name</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.beneficiary_bank_name}</p>
+                  <p className="font-medium mt-1">{selectedTransaction.bank_name}</p>
                 </div>
 
                 <div>
                   <Label className="text-gray-600 text-xs">Account Number</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.beneficiary_account_number}
+                    {selectedTransaction.account_number}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-gray-600 text-xs">IFSC Code</Label>
                   <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.beneficiary_ifsc_code}
+                    {selectedTransaction.ifsc_code}
                   </p>
                 </div>
 
@@ -1270,7 +1270,7 @@ useEffect(() => {
                 <div>
                   <Label className="text-gray-600 text-xs">Status</Label>
                   <div className="mt-1">
-                    {getStatusBadge(selectedTransaction.payout_transaction_status)}
+                    {getStatusBadge(selectedTransaction.transaction_status)}
                   </div>
                 </div>
 
