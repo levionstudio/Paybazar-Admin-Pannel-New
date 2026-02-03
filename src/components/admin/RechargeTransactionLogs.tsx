@@ -61,10 +61,14 @@ interface User {
 interface MobileRechargeTransaction {
   mobile_recharge_transaction_id: number;
   retailer_id: string;
+  business_name: string;
+  retailer_name: string;
   mobile_number: string;   // ✅ FIX
   operator_code: number;
   operator_name: string;
   amount: number;
+  before_balance: number;
+  after_balance: number;
   circle_code: number;
   circle_name: string;
   recharge_type: string;
@@ -392,72 +396,113 @@ t.mobile_number.includes(s)||
   };
 
   // Export to Excel
-  const exportToExcel = async (isUserData: boolean) => {
-    try {
-      const allData = isUserData ? filteredUserTransactions : filteredAllTransactions;
+const exportToExcel = async (isUserData: boolean) => {
+  try {
+    const allData = isUserData
+      ? filteredUserTransactions
+      : filteredAllTransactions;
 
-      if (allData.length === 0) {
-        toast.error("No transactions to export");
-        return;
-      }
-
-      const data = allData.map((t, i) => ({
-        "S.No": i + 1,
-        "Date & Time": formatDate(t.created_at),
-        "Transaction ID": t.mobile_recharge_transaction_id,
-        "Partner Request ID": t.partner_request_id,
-        "Retailer ID": t.retailer_id,
-"Mobile Number": `'${t.mobile_number}`,
-        "Operator": t.operator_name,
-        "Circle": t.circle_name,
-        "Amount (₹)": t.amount.toFixed(2),
-        "Recharge Type": getRechargeTypeName(t.recharge_type),
-        "Commission (₹)": t.commision.toFixed(2),
-        "Status": t.status,
-      }));
-
-      // Calculate totals
-      const totalAmount = allData.reduce((sum, t) => sum + t.amount, 0);
-      const totalCommission = allData.reduce((sum, t) => sum + t.commision, 0);
-
-      const summaryRow = {
-        "S.No": "",
-        "Date & Time": "",
-        "Transaction ID": "",
-        "Partner Request ID": "TOTAL",
-        "Retailer ID": "",
-        "Mobile Number": "",
-        "Operator": "",
-        "Circle": "",
-        "Amount (₹)": totalAmount.toFixed(2),
-        "Recharge Type": "",
-        "Commission (₹)": totalCommission.toFixed(2),
-        "Status": "",
-      };
-
-      const finalData = [...data, summaryRow];
-      const ws = XLSX.utils.json_to_sheet(finalData);
-
-      ws["!cols"] = [
-        { wch: 6 }, { wch: 18 }, { wch: 15 }, { wch: 38 },
-        { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 20 },
-        { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }
-      ];
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Recharge Transactions");
-
-      const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = isUserData 
-        ? `Retailer_${selectedUserId}_Recharge_Transactions_${timestamp}.xlsx`
-        : `All_Mobile_Recharge_Transactions_${timestamp}.xlsx`;
-      
-      XLSX.writeFile(wb, filename);
-      toast.success(`Exported ${allData.length} transactions successfully`);
-    } catch (error) {
-      toast.error("Failed to export data");
+    if (!allData || allData.length === 0) {
+      toast.error("No transactions to export");
+      return;
     }
-  };
+
+    // 🔐 Safe number helper
+    const num = (v?: number | null) =>
+      typeof v === "number" && !isNaN(v) ? v : 0;
+
+    const data = allData.map((t, i) => ({
+      "S.No": i + 1,
+      "Date & Time": formatDate(t.created_at),
+      "Transaction ID": t.mobile_recharge_transaction_id || "-",
+      "Partner Request ID": t.partner_request_id || "-",
+      "Retailer ID": t.retailer_id || "-",
+      "Retailer Name": t.retailer_name || "-",
+      "Business": t.business_name || "-",
+      "Mobile Number": `'${t.mobile_number || ""}`,
+      "Operator": t.operator_name || "-",
+      "Circle": t.circle_name || "-",
+      "Amount (₹)": num(t.amount).toFixed(2),
+      "Before Balance (₹)": num(t.before_balance).toFixed(2),
+      "After Balance (₹)": num(t.after_balance).toFixed(2),
+      "Recharge Type": getRechargeTypeName(t.recharge_type),
+      "Commission (₹)": num(t.commision).toFixed(2),
+      "Status": t.status || "-",
+    }));
+
+    // ✅ Totals
+    const totalAmount = allData.reduce((s, t) => s + num(t.amount), 0);
+    const totalBeforeBalance = allData.reduce(
+      (s, t) => s + num(t.before_balance),
+      0
+    );
+    const totalAfterBalance = allData.reduce(
+      (s, t) => s + num(t.after_balance),
+      0
+    );
+    const totalCommission = allData.reduce(
+      (s, t) => s + num(t.commision),
+      0
+    );
+
+    const summaryRow = {
+      "S.No": "",
+      "Date & Time": "",
+      "Transaction ID": "",
+      "Partner Request ID": "TOTAL",
+      "Retailer ID": "",
+      "Retailer Name": "",
+      "Business": "",
+      "Mobile Number": "",
+      "Operator": "",
+      "Circle": "",
+      "Amount (₹)": totalAmount.toFixed(2),
+      "Before Balance (₹)": totalBeforeBalance.toFixed(2),
+      "After Balance (₹)": totalAfterBalance.toFixed(2),
+      "Recharge Type": "",
+      "Commission (₹)": totalCommission.toFixed(2),
+      "Status": "",
+    };
+
+    const finalData = [...data, summaryRow];
+
+    const ws = XLSX.utils.json_to_sheet(finalData);
+
+    ws["!cols"] = [
+      { wch: 6 },  // S.No
+      { wch: 18 }, // Date
+      { wch: 18 }, // Txn ID
+      { wch: 36 }, // Partner Req ID
+      { wch: 14 }, // Retailer ID
+      { wch: 18 }, // Retailer Name
+      { wch: 18 }, // Business
+      { wch: 16 }, // Mobile
+      { wch: 14 }, // Operator
+      { wch: 14 }, // Circle
+      { wch: 14 }, // Amount
+      { wch: 16 }, // Before Bal
+      { wch: 16 }, // After Bal
+      { wch: 14 }, // Recharge Type
+      { wch: 14 }, // Commission
+      { wch: 12 }, // Status
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Recharge Transactions");
+
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = isUserData
+      ? `Retailer_${selectedUserId}_Recharge_Transactions_${date}.xlsx`
+      : `All_Mobile_Recharge_Transactions_${date}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+
+    toast.success(`Exported ${allData.length} transactions successfully`);
+  } catch (error) {
+    console.error("❌ EXPORT ERROR:", error);
+    toast.error("Failed to export data");
+  }
+};
 
   const getStatusBadge = (status: string) => {
     if (!status) {
@@ -560,6 +605,12 @@ t.mobile_number.includes(s)||
                   Amount (₹)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  Before Balance (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  After Balance (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Status
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
@@ -592,6 +643,12 @@ t.mobile_number.includes(s)||
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
                     ₹{formatAmount(tx.amount)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.before_balance)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.after_balance)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
                     {getStatusBadge(tx.status)}
@@ -1084,6 +1141,16 @@ t.mobile_number.includes(s)||
                     {selectedTransaction.retailer_id}
                   </p>
                 </div>
+                
+                <div>
+                  <Label className="text-gray-600 text-xs">Retailer Name</Label>
+                  <p className="font-medium mt-1">{selectedTransaction.retailer_name}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-gray-600 text-xs">Business</Label>
+                  <p className="font-medium mt-1">{selectedTransaction.business_name}</p>
+                </div>  
 
                 <div>
                   <Label className="text-gray-600 text-xs">Mobile Number</Label>

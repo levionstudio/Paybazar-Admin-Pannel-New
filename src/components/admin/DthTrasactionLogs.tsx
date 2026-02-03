@@ -65,9 +65,13 @@ interface DTHRechargeTransaction {
   operator_code: number;
   operator_name: string;
   amount: number;
+  before_balance: number;
+  after_balance: number;
+  business_name: string;
   commision: number;
   status: string;
   partner_request_id: string;
+  retailer_name: string;
   created_at: string;
 }
 
@@ -76,15 +80,13 @@ const DTHRechargeTransactionPage = () => {
   const [adminId, setAdminId] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   
-  // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   };
   
-  // All Transactions - Raw data from API
+  // All Transactions
   const [allTransactionsRaw, setAllTransactionsRaw] = useState<DTHRechargeTransaction[]>([]);
-  // All Transactions - Filtered data
   const [filteredAllTransactions, setFilteredAllTransactions] = useState<DTHRechargeTransaction[]>([]);
   const [allSearchTerm, setAllSearchTerm] = useState("");
   const [allStatusFilter, setAllStatusFilter] = useState("ALL");
@@ -93,9 +95,8 @@ const DTHRechargeTransactionPage = () => {
   const [allCurrentPage, setAllCurrentPage] = useState(1);
   const [allRecordsPerPage, setAllRecordsPerPage] = useState(10);
   
-  // Custom Tab - Raw data from API
+  // Custom Tab
   const [userTransactionsRaw, setUserTransactionsRaw] = useState<DTHRechargeTransaction[]>([]);
-  // Custom Tab - Filtered data
   const [filteredUserTransactions, setFilteredUserTransactions] = useState<DTHRechargeTransaction[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
@@ -192,7 +193,7 @@ const DTHRechargeTransactionPage = () => {
     fetchUsers();
   }, [adminId, token]);
 
-  // Fetch all transactions (no filters in API)
+  // Fetch all transactions
   const fetchAllTransactions = useCallback(async () => {
     if (!token) {
       console.error("No token for fetching all transactions");
@@ -252,7 +253,7 @@ const DTHRechargeTransactionPage = () => {
     }
   }, [token, fetchAllTransactions]);
 
-  // Fetch transactions for selected user (no filters in API)
+  // Fetch transactions for selected user
   const fetchUserTransactions = useCallback(async () => {
     if (!selectedUserId || !token) {
       console.log("Skipping user transactions fetch - no user ID or token");
@@ -277,7 +278,6 @@ const DTHRechargeTransactionPage = () => {
 
       console.log("Parsed user recharges list:", list);
       console.log("User transactions count:", list.length);
-      console.log("First user transaction (if exists):", list[0]);
 
       const sorted = list.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -297,7 +297,7 @@ const DTHRechargeTransactionPage = () => {
     }
   }, [selectedUserId, token]);
 
-  // Effect for fetching user transactions when user changes
+  // Effect for fetching user transactions
   useEffect(() => {
     if (selectedUserId && token) {
       fetchUserTransactions();
@@ -307,7 +307,7 @@ const DTHRechargeTransactionPage = () => {
     }
   }, [selectedUserId, token, fetchUserTransactions]);
 
-  // Apply ALL filters for All Transactions (date, status, search)
+  // Apply filters for All Transactions
   useEffect(() => {
     console.log("=== Applying Filters to All Transactions ===");
     let filtered = [...allTransactionsRaw];
@@ -351,7 +351,7 @@ const DTHRechargeTransactionPage = () => {
     setAllCurrentPage(1);
   }, [allTransactionsRaw, allStartDate, allEndDate, allStatusFilter, allSearchTerm]);
 
-  // Apply ALL filters for User Transactions (date, status, search)
+  // Apply filters for User Transactions
   useEffect(() => {
     console.log("=== Applying Filters to User Transactions ===");
     let filtered = [...userTransactionsRaw];
@@ -415,7 +415,7 @@ const DTHRechargeTransactionPage = () => {
     toast.success("All filters cleared");
   };
 
-  // Export to Excel
+  // ✅ CORRECTED: Export to Excel function
   const exportToExcel = async (isUserData: boolean) => {
     console.log("=== Exporting to Excel ===");
     console.log("Is user data:", isUserData);
@@ -429,13 +429,18 @@ const DTHRechargeTransactionPage = () => {
         return;
       }
 
+      // ✅ FIXED: Corrected field names and formatting
       const data = allData.map((t, i) => ({
         "S.No": i + 1,
         "Date & Time": formatDate(t.created_at),
         "Transaction ID": t.dth_transaction_id,
         "Partner Request ID": t.partner_request_id,
         "Retailer ID": t.retailer_id,
+        "Retailer Name": t.retailer_name,
         "Customer ID": `'${t.customer_id}`,
+        "Business Name": t.business_name,
+        "Before Balance (₹)": t.before_balance.toFixed(2),
+        "After Balance (₹)": t.after_balance.toFixed(2),
         "Operator": t.operator_name,
         "Amount (₹)": t.amount.toFixed(2),
         "Commission (₹)": t.commision.toFixed(2),
@@ -449,13 +454,18 @@ const DTHRechargeTransactionPage = () => {
       console.log("Total Amount:", totalAmount);
       console.log("Total Commission:", totalCommission);
 
+      // ✅ FIXED: Corrected summary row
       const summaryRow = {
         "S.No": "",
         "Date & Time": "",
         "Transaction ID": "",
         "Partner Request ID": "TOTAL",
         "Retailer ID": "",
+        "Retailer Name": "",
         "Customer ID": "",
+        "Business Name": "",
+        "Before Balance (₹)": "",
+        "After Balance (₹)": "",
         "Operator": "",
         "Amount (₹)": totalAmount.toFixed(2),
         "Commission (₹)": totalCommission.toFixed(2),
@@ -465,10 +475,22 @@ const DTHRechargeTransactionPage = () => {
       const finalData = [...data, summaryRow];
       const ws = XLSX.utils.json_to_sheet(finalData);
 
+      // ✅ FIXED: Updated column widths to match 14 columns
       ws["!cols"] = [
-        { wch: 6 }, { wch: 18 }, { wch: 15 }, { wch: 38 },
-        { wch: 12 }, { wch: 15 }, { wch: 20 },
-        { wch: 12 }, { wch: 12 }, { wch: 12 }
+        { wch: 6 },   // S.No
+        { wch: 18 },  // Date & Time
+        { wch: 15 },  // Transaction ID
+        { wch: 38 },  // Partner Request ID
+        { wch: 12 },  // Retailer ID
+        { wch: 15 },  // Retailer Name
+        { wch: 20 },  // Customer ID
+        { wch: 20 },  // Business Name
+        { wch: 15 },  // Before Balance
+        { wch: 15 },  // After Balance
+        { wch: 20 },  // Operator
+        { wch: 12 },  // Amount
+        { wch: 12 },  // Commission
+        { wch: 12 },  // Status
       ];
 
       const wb = XLSX.utils.book_new();
@@ -584,6 +606,12 @@ const DTHRechargeTransactionPage = () => {
                   Operator
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  Before Bal (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  After Bal (₹)
+                </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Amount (₹)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
@@ -613,6 +641,12 @@ const DTHRechargeTransactionPage = () => {
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900">
                     {tx.operator_name}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center text-sm text-blue-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.before_balance)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center text-sm text-blue-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.after_balance)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
                     ₹{formatAmount(tx.amount)}
@@ -1111,8 +1145,18 @@ const DTHRechargeTransactionPage = () => {
                 </div>
 
                 <div>
+                  <Label className="text-gray-600 text-xs">Retailer Name</Label>
+                  <p className="font-medium mt-1">{selectedTransaction.retailer_name}</p>
+                </div>
+
+                <div>
                   <Label className="text-gray-600 text-xs">Customer ID</Label>
                   <p className="font-medium text-lg mt-1">{selectedTransaction.customer_id}</p>
+                </div>
+
+                <div>
+                  <Label className="text-gray-600 text-xs">Business Name</Label>
+                  <p className="font-medium mt-1">{selectedTransaction.business_name}</p>
                 </div>
 
                 <div>
@@ -1126,6 +1170,20 @@ const DTHRechargeTransactionPage = () => {
                 </div>
 
                 <div>
+                  <Label className="text-gray-600 text-xs">Before Balance</Label>
+                  <p className="font-semibold text-lg mt-1 text-blue-600">
+                    ₹{formatAmount(selectedTransaction.before_balance)}
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-gray-600 text-xs">After Balance</Label>
+                  <p className="font-semibold text-lg mt-1 text-blue-600">
+                    ₹{formatAmount(selectedTransaction.after_balance)}
+                  </p>
+                </div>
+
+                <div>
                   <Label className="text-gray-600 text-xs">Amount</Label>
                   <p className="font-semibold text-lg mt-1 text-green-600">
                     ₹{formatAmount(selectedTransaction.amount)}
@@ -1134,7 +1192,7 @@ const DTHRechargeTransactionPage = () => {
 
                 <div>
                   <Label className="text-gray-600 text-xs">Commission</Label>
-                  <p className="font-semibold text-lg mt-1 text-blue-600">
+                  <p className="font-semibold text-lg mt-1 text-purple-600">
                     ₹{formatAmount(selectedTransaction.commision)}
                   </p>
                 </div>

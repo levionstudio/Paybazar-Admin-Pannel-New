@@ -73,6 +73,8 @@ interface PayoutTransaction {
   account_number: string;  // ✅ Changed from beneficiary_account_number
   ifsc_code: string;  // ✅ Changed from beneficiary_ifsc_code
   amount: number;
+  before_balance: number;
+  after_balance: number;
   transfer_type: string;
   transaction_status: string;  // ✅ Changed from payout_transaction_status
   admin_commision: number;
@@ -202,42 +204,84 @@ const PayoutTransactionPage = () => {
   }, [adminId, token]);
 
   // Fetch all transactions (no filters in API)
-  const fetchAllTransactions = useCallback(async () => {
-    if (!token) {
-      toast.error("Authentication required");
-      return;
-    }
+const fetchAllTransactions = useCallback(async () => {
+  if (!token) {
+    console.warn("⚠️ fetchAllTransactions skipped: missing token");
+    toast.error("Authentication required");
+    return;
+  }
 
-    setLoadingAllTransactions(true);
+  setLoadingAllTransactions(true);
 
-    try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+  console.log("➡️ Fetching ALL payout transactions", {
+    url: `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
+  });
 
-      // ✅ CORRECTED: Backend returns "transactions" not "payout_transactions"
-      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
+  try {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
-      const sorted = list.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-      );
+    console.log("📦 ALL TRANSACTIONS RAW RESPONSE:", response.data);
 
-      setAllTransactionsRaw(sorted);
-      toast.success(`Loaded ${sorted.length} transactions`);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to fetch transactions"
-      );
-      setAllTransactionsRaw([]);
-    } finally {
-      setLoadingAllTransactions(false);
-    }
-  }, [token]);
+    // Backend returns "transactions"
+    const list: PayoutTransaction[] =
+      response.data?.data?.transactions || [];
+
+    console.log("📄 ALL TRANSACTIONS LIST:", list);
+
+    const sorted = list.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    console.log("📊 ALL TRANSACTIONS SORTED:", sorted);
+
+    // 🔍 Validate balances & commissions
+    sorted.forEach((tx, index) => {
+      if (
+        tx.before_balance === undefined ||
+        tx.after_balance === undefined
+      ) {
+        console.warn("⚠️ Missing balance fields", {
+          index,
+          payout_transaction_id: tx.payout_transaction_id,
+          before_balance: tx.before_balance,
+          after_balance: tx.after_balance,
+        });
+      }
+
+      if (
+        tx.admin_commision === undefined ||
+        tx.retailer_commision === undefined
+      ) {
+        console.warn("⚠️ Missing commission fields", {
+          index,
+          payout_transaction_id: tx.payout_transaction_id,
+          admin_commision: tx.admin_commision,
+          retailer_commision: tx.retailer_commision,
+        });
+      }
+    });
+
+    setAllTransactionsRaw(sorted);
+    toast.success(`Loaded ${sorted.length} transactions`);
+  } catch (error: any) {
+    console.error("❌ ERROR FETCHING ALL TRANSACTIONS:", error);
+    toast.error(
+      error.response?.data?.message || "Failed to fetch transactions"
+    );
+    setAllTransactionsRaw([]);
+  } finally {
+    setLoadingAllTransactions(false);
+    console.log("✅ fetchAllTransactions completed");
+  }
+}, [token]);
+
 
   // ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
   useEffect(() => {
@@ -247,35 +291,84 @@ const PayoutTransactionPage = () => {
   }, [token, fetchAllTransactions]);
 
   // Fetch transactions for selected user (no filters in API)
-  const fetchUserTransactions = useCallback(async () => {
-    if (!selectedUserId || !token) {
-      return;
-    }
+const fetchUserTransactions = useCallback(async () => {
+  if (!selectedUserId || !token) {
+    console.warn("⚠️ fetchUserTransactions skipped", {
+      selectedUserId,
+      hasToken: !!token,
+    });
+    return;
+  }
 
-    setLoadingUserTransactions(true);
-    
-    try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      // ✅ CORRECTED: Backend returns "transactions" not "payout_transactions"
-      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
+  setLoadingUserTransactions(true);
 
-      const sorted = list.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+  console.log("➡️ Fetching USER transactions", {
+    selectedUserId,
+    url: `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
+  });
 
-      setUserTransactionsRaw(sorted);
-      toast.success(`Loaded ${sorted.length} transactions`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to fetch transactions");
-      setUserTransactionsRaw([]);
-    } finally {
-      setLoadingUserTransactions(false);
-    }
-  }, [selectedUserId, token]);
+  try {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log("📦 USER TRANSACTIONS RAW RESPONSE:", response.data);
+
+    const list: PayoutTransaction[] =
+      response.data?.data?.transactions || [];
+
+    console.log("📄 USER TRANSACTIONS LIST:", list);
+
+    const sorted = list.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    console.log("📊 USER TRANSACTIONS SORTED:", sorted);
+
+    // Optional: detect missing balances / commissions
+    sorted.forEach((tx, index) => {
+      if (
+        tx.before_balance === undefined ||
+        tx.after_balance === undefined
+      ) {
+        console.warn("⚠️ Missing balance fields", {
+          index,
+          payout_transaction_id: tx.payout_transaction_id,
+          before_balance: tx.before_balance,
+          after_balance: tx.after_balance,
+        });
+      }
+
+      if (
+        tx.admin_commision === undefined ||
+        tx.retailer_commision === undefined
+      ) {
+        console.warn("⚠️ Missing commission fields", {
+          index,
+          payout_transaction_id: tx.payout_transaction_id,
+          admin_commision: tx.admin_commision,
+          retailer_commision: tx.retailer_commision,
+        });
+      }
+    });
+
+    setUserTransactionsRaw(sorted);
+    toast.success(`Loaded ${sorted.length} transactions`);
+  } catch (error: any) {
+    console.error("❌ ERROR FETCHING USER TRANSACTIONS:", error);
+    toast.error(
+      error.response?.data?.message || "Failed to fetch transactions"
+    );
+    setUserTransactionsRaw([]);
+  } finally {
+    setLoadingUserTransactions(false);
+    console.log("✅ fetchUserTransactions completed");
+  }
+}, [selectedUserId, token]);
+
 
   // Effect for fetching user transactions when user changes
   useEffect(() => {
@@ -387,86 +480,119 @@ const PayoutTransactionPage = () => {
   };
 
   // Export to Excel
-  const exportToExcel = async (isUserData: boolean) => {
-    try {
-      const allData = isUserData ? filteredUserTransactions : filteredAllTransactions;
+const exportToExcel = async (isUserData: boolean) => {
+  try {
+    const allData = isUserData
+      ? filteredUserTransactions
+      : filteredAllTransactions;
 
-      if (allData.length === 0) {
-        toast.error("No transactions to export");
-        return;
-      }
+    console.log("📤 EXPORT INIT", {
+      isUserData,
+      records: allData.length,
+    });
 
-      const data = allData.map((t, i) => ({
-        "S.No": i + 1,
-        "Date & Time": formatDate(t.created_at),
-        "Order ID": t.order_id || "-",
-        "Transaction ID": t.operator_transaction_id || "-",
-        "Mobile": t.mobile_number,
-        "Beneficiary Name": t.beneficiary_name,
-        "Bank": t.bank_name,
-        "Account Number": t.account_number,
-        "IFSC": t.ifsc_code,
-        "Amount (₹)": t.amount.toFixed(2),
-        "Transfer Type": getTransferTypeName(t.transfer_type),
-        "Status": t.transaction_status,
-        "Operator TXN ID": t.operator_transaction_id || "N/A",
-        "Admin Commission": t.admin_commision || 0,
-        "MD Commission": t.master_distributor_commision || 0,
-        "Distributor Commission": t.distributor_commision || 0,
-        "Retailer Commission": t.retailer_commision || 0,
-      }));
-
-      // Calculate totals
-      const totalAmount = allData.reduce((sum, t) => sum + t.amount, 0);
-      const totalAdminComm = allData.reduce((sum, t) => sum + (t.admin_commision || 0), 0);
-      const totalMDComm = allData.reduce((sum, t) => sum + (t.master_distributor_commision || 0), 0);
-      const totalDistComm = allData.reduce((sum, t) => sum + (t.distributor_commision || 0), 0);
-      const totalRetailerComm = allData.reduce((sum, t) => sum + (t.retailer_commision || 0), 0);
-
-      const summaryRow = {
-        "S.No": "",
-        "Date & Time": "",
-        "Order ID": "TOTAL",
-        "Transaction ID": "",
-        "Mobile": "",
-        "Beneficiary Name": "",
-        "Bank": "",
-        "Account Number": "",
-        "IFSC": "",
-        "Amount (₹)": totalAmount.toFixed(2),
-        "Transfer Type": "",
-        "Status": "",
-        "Operator TXN ID": "",
-        "Admin Commission": totalAdminComm.toFixed(2),
-        "MD Commission": totalMDComm.toFixed(2),
-        "Distributor Commission": totalDistComm.toFixed(2),
-        "Retailer Commission": totalRetailerComm.toFixed(2),
-      };
-
-      const finalData = [...data, summaryRow];
-      const ws = XLSX.utils.json_to_sheet(finalData);
-
-      ws["!cols"] = [
-        { wch: 6 }, { wch: 18 }, { wch: 20 }, { wch: 25 },
-        { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 18 },
-        { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 },
-        { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }
-      ];
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Transactions");
-
-      const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = isUserData 
-        ? `Retailer_${selectedUserId}_Transactions_${timestamp}.xlsx`
-        : `All_Payout_Transactions_${timestamp}.xlsx`;
-      
-      XLSX.writeFile(wb, filename);
-      toast.success(`Exported ${allData.length} transactions successfully`);
-    } catch (error) {
-      toast.error("Failed to export data");
+    if (allData.length === 0) {
+      toast.error("No transactions to export");
+      return;
     }
-  };
+
+    // Helper for safe numbers
+    const num = (v?: number | null) =>
+      typeof v === "number" && !isNaN(v) ? v : 0;
+
+    const data = allData.map((t, i) => ({
+      "S.No": i + 1,
+      "Date & Time": formatDate(t.created_at),
+      "Order ID": t.order_id || "-",
+      "Transaction ID": t.operator_transaction_id || "-",
+      "Retailer ID": t.retailer_id || "-",
+      "Retailer Name": t.retailer_name || "-",
+      "Business": t.retailer_business_name || "-",
+      "Mobile": t.mobile_number || "-",
+      "Beneficiary Name": t.beneficiary_name || "-",
+      "Bank": t.bank_name || "-",
+      "Account Number": t.account_number || "-",
+      "IFSC": t.ifsc_code || "-",
+      "Amount (₹)": num(t.amount).toFixed(2),
+      "Before Balance (₹)": num(t.before_balance).toFixed(2),
+      "After Balance (₹)": num(t.after_balance).toFixed(2),
+      "Transfer Type": getTransferTypeName(t.transfer_type),
+      "Status": t.transaction_status,
+      "Admin Commission": num(t.admin_commision).toFixed(2),
+      "MD Commission": num(t.master_distributor_commision).toFixed(2),
+      "Distributor Commission": num(t.distributor_commision).toFixed(2),
+      "Retailer Commission": num(t.retailer_commision).toFixed(2),
+    }));
+
+    console.log("📄 EXPORT ROW SAMPLE", data[0]);
+
+    // Totals
+    const totalAmount = allData.reduce((s, t) => s + num(t.amount), 0);
+    const totalBeforeBal = allData.reduce((s, t) => s + num(t.before_balance), 0);
+    const totalAfterBal = allData.reduce((s, t) => s + num(t.after_balance), 0);
+    const totalAdminComm = allData.reduce((s, t) => s + num(t.admin_commision), 0);
+    const totalMDComm = allData.reduce((s, t) => s + num(t.master_distributor_commision), 0);
+    const totalDistComm = allData.reduce((s, t) => s + num(t.distributor_commision), 0);
+    const totalRetailerComm = allData.reduce((s, t) => s + num(t.retailer_commision), 0);
+
+    const summaryRow = {
+      "S.No": "",
+      "Date & Time": "",
+      "Order ID": "TOTAL",
+      "Transaction ID": "",
+      "Retailer ID": "",
+      "Retailer Name": "",
+      "Business": "",
+      "Mobile": "",
+      "Beneficiary Name": "",
+      "Bank": "",
+      "Account Number": "",
+      "IFSC": "",
+      "Amount (₹)": totalAmount.toFixed(2),
+      "Before Balance (₹)": totalBeforeBal.toFixed(2),
+      "After Balance (₹)": totalAfterBal.toFixed(2),
+      "Transfer Type": "",
+      "Status": "",
+      "Admin Commission": totalAdminComm.toFixed(2),
+      "MD Commission": totalMDComm.toFixed(2),
+      "Distributor Commission": totalDistComm.toFixed(2),
+      "Retailer Commission": totalRetailerComm.toFixed(2),
+    };
+
+    const finalData = [...data, summaryRow];
+
+    const ws = XLSX.utils.json_to_sheet(finalData);
+
+    ws["!cols"] = [
+      { wch: 6 },  { wch: 18 }, { wch: 20 }, { wch: 25 },
+      { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 14 },
+      { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+      { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = isUserData
+      ? `Retailer_${selectedUserId}_Transactions_${date}.xlsx`
+      : `All_Payout_Transactions_${date}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+
+    console.log("✅ EXPORT COMPLETE", {
+      filename,
+      rows: finalData.length,
+    });
+
+    toast.success(`Exported ${allData.length} transactions successfully`);
+  } catch (error) {
+    console.error("❌ EXPORT FAILED", error);
+    toast.error("Failed to export data");
+  }
+};
+
 
   // Update transaction status
   const handleUpdateStatus = async (newStatus: "SUCCESS" | "FAILED" | "PENDING") => {
@@ -545,12 +671,18 @@ const PayoutTransactionPage = () => {
     }
   };
 
-  const formatAmount = (amount: number) => {
-    return amount.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
+const formatAmount = (amount?: number | string | null) => {
+  if (amount === null || amount === undefined || isNaN(Number(amount))) {
+    return "0.00";
+  }
+
+  const num = Number(amount);
+
+  return num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 
   const handleViewDetails = (transaction: PayoutTransaction) => {
     setSelectedTransaction(transaction);
@@ -610,6 +742,12 @@ const PayoutTransactionPage = () => {
                   Amount (₹)
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                  Before Balance (₹)
+                </TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                    After Balance (₹)
+                  </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Status
                 </TableHead>
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
@@ -639,6 +777,12 @@ const PayoutTransactionPage = () => {
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
                     ₹{formatAmount(tx.amount)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.before_balance)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4 text-center font-semibold text-sm text-green-600 whitespace-nowrap">
+                    ₹{formatAmount(tx.after_balance)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
                     {getStatusBadge(tx.transaction_status)}
