@@ -116,6 +116,12 @@ const DTHRechargeTransactionPage = () => {
   // Dialog states
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<DTHRechargeTransaction | null>(null);
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
+const [refunding, setRefunding] = useState(false);
+const isRefunded = (status: string) =>
+  ["REFUND", "REFUNDED"].includes(status?.toUpperCase());
+
+
 
   // Decode token
   useEffect(() => {
@@ -523,6 +529,9 @@ const DTHRechargeTransactionPage = () => {
         return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
       case "FAILED":
         return <Badge className="bg-red-50 text-red-700 border-red-300">Failed</Badge>;
+        case "REFUND":
+  return <Badge className="bg-purple-600 text-white">Refunded</Badge>;
+
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -549,6 +558,79 @@ const DTHRechargeTransactionPage = () => {
       maximumFractionDigits: 2,
     });
   };
+
+
+const handleOpenRefund = (tx: DTHRechargeTransaction) => {
+  if (isRefunded(tx.status)) {
+    toast.error("This transaction is already refunded");
+    return;
+  }
+
+  setSelectedTransaction(tx);
+  setRefundConfirmOpen(true);
+};
+
+  const handleRefund = async () => {
+  if (!selectedTransaction || !token) {
+    toast.error("Missing transaction data");
+    return;
+  }
+
+  const transactionId = selectedTransaction.dth_transaction_id;
+
+if (isRefunded(selectedTransaction.status)) {
+  toast.error("This transaction is already refunded");
+  return;
+}
+
+
+  setRefunding(true);
+
+  try {
+    const url = `${import.meta.env.VITE_API_BASE_URL}/dth_recharge/refund/${transactionId}`;
+
+    console.log("🔄 Refunding DTH transaction:", transactionId);
+
+    const response = await axios.put(
+      url,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log("✅ Refund response:", response.data);
+
+    toast.success(`Transaction ${transactionId} refunded`);
+
+    // 🔥 Update UI instantly
+    setAllTransactionsRaw(prev =>
+      prev.map(tx =>
+        tx.dth_transaction_id === transactionId
+          ? { ...tx, status: "REFUNDED" }
+          : tx
+      )
+    );
+
+    setUserTransactionsRaw(prev =>
+      prev.map(tx =>
+        tx.dth_transaction_id === transactionId
+          ? { ...tx, status: "REFUNDED" }
+          : tx
+      )
+    );
+
+    setSelectedTransaction(prev =>
+      prev ? { ...prev, status: "REFUNDED" } : null
+    );
+
+    setRefundConfirmOpen(false);
+    setDetailsOpen(false);
+  } catch (error: any) {
+    console.error("❌ DTH Refund failed:", error.response);
+    toast.error(error.response?.data?.message || "Refund failed");
+  } finally {
+    setRefunding(false);
+  }
+};
 
   const handleViewDetails = (transaction: DTHRechargeTransaction) => {
     console.log("Viewing transaction details:", transaction);
@@ -620,6 +702,10 @@ const DTHRechargeTransactionPage = () => {
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Actions
                 </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase">
+  Refund
+</TableHead>
+
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -664,6 +750,28 @@ const DTHRechargeTransactionPage = () => {
                       Details
                     </Button>
                   </TableCell>
+<TableCell className="text-center whitespace-nowrap">
+  {isRefunded(tx.status) ? (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled
+      className="cursor-not-allowed opacity-50"
+    >
+      Refunded
+    </Button>
+  ) : (
+    <Button
+      size="sm"
+      variant="destructive"
+      onClick={() => handleOpenRefund(tx)}
+    >
+      Refund
+    </Button>
+  )}
+</TableCell>
+
+
                 </TableRow>
               ))}
             </TableBody>
@@ -1215,6 +1323,45 @@ const DTHRechargeTransactionPage = () => {
           )}
         </DialogContent>
       </Dialog>
+      <Dialog open={refundConfirmOpen} onOpenChange={setRefundConfirmOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Confirm Refund</DialogTitle>
+    </DialogHeader>
+
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Are you sure you want to refund this DTH recharge?
+      </p>
+
+      <div className="bg-gray-50 border rounded p-3 space-y-1 text-sm">
+        <div><b>Retailer:</b> {selectedTransaction?.retailer_name}</div>
+        <div><b>Customer ID:</b> {selectedTransaction?.customer_id}</div>
+        <div><b>Amount:</b> ₹{formatAmount(selectedTransaction?.amount || 0)}</div>
+        <div><b>Transaction ID:</b> {selectedTransaction?.dth_transaction_id}</div>
+      </div>
+
+      <div className="flex justify-end gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setRefundConfirmOpen(false)}
+          disabled={refunding}
+        >
+          Cancel
+        </Button>
+
+        <Button
+          variant="destructive"
+          onClick={handleRefund}
+          disabled={refunding}
+        >
+          {refunding ? "Refunding..." : "Yes, Refund"}
+        </Button>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
     </div>
   );
 };

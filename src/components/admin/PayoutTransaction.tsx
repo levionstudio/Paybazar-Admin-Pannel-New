@@ -132,6 +132,13 @@ const PayoutTransactionPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<PayoutTransaction | null>(null);
   const [operatorTxnId, setOperatorTxnId] = useState("");
 
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
+const [refunding, setRefunding] = useState(false);
+
+  const isRefunded = (status: string) =>
+  ["REFUND", "REFUNDED"].includes(status?.toUpperCase());
+
+
   // Helper function to format transfer type
   const getTransferTypeName = (transferType: string) => {
     switch (transferType) {
@@ -202,6 +209,73 @@ const PayoutTransactionPage = () => {
 
     fetchUsers();
   }, [adminId, token]);
+
+
+  const handleOpenRefund = (tx: PayoutTransaction) => {
+  if (isRefunded(tx.transaction_status)) {
+    toast.error("This transaction is already refunded");
+    return;
+  }
+
+  setSelectedTransaction(tx);
+  setRefundConfirmOpen(true);
+};
+const handleRefund = async () => {
+  if (!selectedTransaction || !token) {
+    toast.error("Missing transaction data");
+    return;
+  }
+
+  if (isRefunded(selectedTransaction.transaction_status)) {
+    toast.error("This transaction is already refunded");
+    return;
+  }
+
+  setRefunding(true);
+
+  try {
+    const url = `${import.meta.env.VITE_API_BASE_URL}/payout/refund/${selectedTransaction.payout_transaction_id}`;
+
+    console.log("🔄 Refunding payout:", selectedTransaction.payout_transaction_id);
+
+    await axios.put(
+      url,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    toast.success("Payout refunded successfully");
+
+    // 🔥 Update UI instantly
+    setAllTransactionsRaw(prev =>
+      prev.map(tx =>
+        tx.payout_transaction_id === selectedTransaction.payout_transaction_id
+          ? { ...tx, transaction_status: "REFUNDED" }
+          : tx
+      )
+    );
+
+    setUserTransactionsRaw(prev =>
+      prev.map(tx =>
+        tx.payout_transaction_id === selectedTransaction.payout_transaction_id
+          ? { ...tx, transaction_status: "REFUNDED" }
+          : tx
+      )
+    );
+
+    setSelectedTransaction(prev =>
+      prev ? { ...prev, transaction_status: "REFUNDED" } : null
+    );
+
+    setRefundConfirmOpen(false);
+    setDetailsOpen(false);
+  } catch (error: any) {
+    console.error("❌ Payout refund failed", error);
+    toast.error(error.response?.data?.message || "Refund failed");
+  } finally {
+    setRefunding(false);
+  }
+};
 
   // Fetch all transactions (no filters in API)
 const fetchAllTransactions = useCallback(async () => {
@@ -649,8 +723,10 @@ const exportToExcel = async (isUserData: boolean) => {
         return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
       case "FAILED":
         return <Badge className="bg-red-50 text-red-700 border-red-300">Failed</Badge>;
-      case "REFUND":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-300">Refunded</Badge>;
+   case "REFUND":
+case "REFUNDED":
+  return <Badge className="bg-purple-600 text-white">Refunded</Badge>;
+
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -753,6 +829,10 @@ const formatAmount = (amount?: number | string | null) => {
                 <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
                   Actions
                 </TableHead>
+                <TableHead className="text-center text-xs font-semibold uppercase px-4">
+  Refund
+</TableHead>
+
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -797,6 +877,27 @@ const formatAmount = (amount?: number | string | null) => {
                       Details
                     </Button>
                   </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+  {isRefunded(tx.transaction_status) ? (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled
+      className="cursor-not-allowed opacity-50"
+    >
+      Refunded
+    </Button>
+  ) : (
+    <Button
+      size="sm"
+      variant="destructive"
+      onClick={() => handleOpenRefund(tx)}
+    >
+      Refund
+    </Button>
+  )}
+</TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
@@ -1465,6 +1566,44 @@ const formatAmount = (amount?: number | string | null) => {
           )}
         </DialogContent>
       </Dialog>
+      <Dialog open={refundConfirmOpen} onOpenChange={setRefundConfirmOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Confirm Refund</DialogTitle>
+    </DialogHeader>
+
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Are you sure you want to refund this payout?
+      </p>
+
+      <div className="bg-gray-50 border rounded p-3 space-y-1 text-sm">
+        <div><b>Retailer:</b> {selectedTransaction?.retailer_name}</div>
+        <div><b>Amount:</b> ₹{formatAmount(selectedTransaction?.amount)}</div>
+        <div><b>Payout ID:</b> {selectedTransaction?.payout_transaction_id}</div>
+      </div>
+
+      <div className="flex justify-end gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setRefundConfirmOpen(false)}
+          disabled={refunding}
+        >
+          Cancel
+        </Button>
+
+        <Button
+          variant="destructive"
+          onClick={handleRefund}
+          disabled={refunding}
+        >
+          {refunding ? "Refunding..." : "Yes, Refund"}
+        </Button>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
     </div>
   );
 };
