@@ -506,22 +506,32 @@ const handleExportReport = async () => {
       color: 'text-success',
       onClick: () => navigate('/admin/logs')
     },
+    // {
+    //   title: 'Total Network Balance',
+    //   value: formatCurrency(totalBalance),
+    //   icon: DollarSign,
+    //   description: 'All users combined',
+    //   color: 'text-primary',
+    //   onClick: () => navigate('/admin/logs')
+    // },
     {
-      title: 'Total Network Balance',
-      value: formatCurrency(totalBalance),
-      icon: DollarSign,
-      description: 'All users combined',
-      color: 'text-primary',
-      onClick: () => navigate('/admin/logs')
-    },
-    {
-      title: 'Recharge Kit Balance',
+      title: 'RechargeKit Balance \n(Recharge)',
       value: formatCurrency(rechargeKitBalance),
       icon: ShoppingCart,
       description: 'Available balance',
       color: 'text-accent',
       onClick: () => {}
     },
+     {
+      title: 'RechargeKit Balance \n(Settlement)',
+      value: formatCurrency(rechargeKitBalance),
+      icon: ShoppingCart,
+      description: 'Available balance',
+      color: 'text-accent',
+      onClick: () => {}
+    },
+   
+
     {
       title: 'Active Users',
       value: totalUsers.toString(),
