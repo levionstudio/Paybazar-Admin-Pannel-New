@@ -1356,72 +1356,7 @@ const formatAmount = (amount?: number | string | null) => {
           </DialogHeader>
           {selectedTransaction && (
             <div className="space-y-6">
-              {/* Status Update Section */}
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Update Transaction Status</h3>
-                    <div className="text-sm">
-                      Current: {getStatusBadge(selectedTransaction.transaction_status)}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="operator-txn-id">
-                      Operator Transaction ID
-                      <span className="text-gray-600 ml-1">(Optional)</span>
-                    </Label>
-                    <Input
-                      id="operator-txn-id"
-                      type="text"
-                      value={operatorTxnId}
-                      onChange={(e) => setOperatorTxnId(e.target.value)}
-                      placeholder="Enter operator transaction ID"
-                      className="w-full mt-1"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <Button
-                      onClick={() => handleUpdateStatus("PENDING")}
-                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "PENDING"}
-                      className="bg-yellow-600 hover:bg-yellow-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                      )}
-                      PENDING
-                    </Button>
-                    <Button
-                      onClick={() => handleUpdateStatus("SUCCESS")}
-                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "SUCCESS"}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                      )}
-                      SUCCESS
-                    </Button>
-                    <Button
-                      onClick={() => handleUpdateStatus("FAILED")}
-                      disabled={updatingStatus || selectedTransaction.transaction_status.toUpperCase() === "FAILED"}
-                      variant="destructive"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <XCircle className="w-4 h-4 mr-2" />
-                      )}
-                      FAILED
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
+            
               {/* Transaction Information */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
