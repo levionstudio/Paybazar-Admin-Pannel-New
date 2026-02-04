@@ -43,7 +43,7 @@ const transactionLogsSubMenu = [
   { name :"Mobile Recharge Transaction", href: "/admin/logs/mobile-recharge", icon: FileText },
   { name :"Dth Transaction", href: "/admin/logs/dth", icon: FileText },
   { name: "Revert History", href: "/admin/funds/revert/history", icon: History },
-  {name: "Tds Transaction", href: "/admin/logs/tds", icon: FileText},
+  // {name: "Tds Transaction", href: "/admin/logs/tds", icon: FileText},
 
 ];
 
@@ -84,7 +84,7 @@ const info = [
 const fundsSubMenu = [
   { name: "Fund Request", href: "/admin/funds/request", icon: Send },
   { name: "Revert Request", href: "/admin/funds/revert", icon: RotateCcw },
-  { name: "Refund", href: "/admin/funds/refund", icon: RefreshCcw },
+  // { name: "Refund", href: "/admin/funds/refund", icon: RefreshCcw },
 ];
 
 interface SidebarProps {
