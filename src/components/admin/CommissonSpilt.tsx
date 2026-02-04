@@ -95,7 +95,7 @@ interface HierarchyLevel {
 
 const TOTAL_COMMISSION = 1.0;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const SERVICES = ["AEPS", "DMT", "BBPS", "Recharge", "PAYOUT"];
+const SERVICES = [ "PAYOUT"];
 
 /* =====================
    AUTH
