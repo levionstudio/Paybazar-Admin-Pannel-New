@@ -119,6 +119,7 @@ export function Dashboard() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalBalance, setTotalBalance] = useState(0);
   const [rechargeKitBalance, setRechargeKitBalance] = useState(0);
+  const [settlementBalance, setSettlementBalance] = useState(0);
   const [totalTransactions, setTotalTransactions] = useState(0);
 
   // Transaction trends (last 6 months)
@@ -249,10 +250,26 @@ export function Dashboard() {
         setTotalUsers(masterDistributors.length + allDistributors.length + retailers.length);
         setTotalBalance(mdBalance + distBalance + retailerBalance);
 
-        // Fetch recharge kit balance
+        // Fetch settlement balance (Primary)
+        try {
+          const settlementResponse = await axios.get(
+            `https://testing.paybazaar.in/admin/get/primary/rechargekit/wallet/balance`,
+            { headers }
+          );
+
+          if (settlementResponse.data.status === "success" && settlementResponse.data.data?.response) {
+            const walletAmount = settlementResponse.data.data.response.wallet_amount || 0;
+            setSettlementBalance(parseFloat(walletAmount.toString()));
+          }
+        } catch (error) {
+          console.error("Failed to fetch settlement balance:", error);
+          setSettlementBalance(0);
+        }
+
+        // Fetch recharge balance
         try {
           const rechargeResponse = await axios.get(
-            `https://testing.paybazaar.in/admin/get/rechargekit/wallet/balance`,
+            `https://testing.paybazaar.in/admin/get/recharge/rechargekit/wallet/balance`,
             { headers }
           );
 
@@ -419,7 +436,8 @@ const handleExportReport = async () => {
     csv += "Metric,Value\n";
     csv += `Admin Wallet Balance,${csvNumber(walletBalance)}\n`;
     csv += `Total Network Balance,${csvNumber(totalBalance)}\n`;
-    csv += `Recharge Kit Balance,${csvNumber(rechargeKitBalance)}\n`;
+    csv += `RechargeKit Balance (Settlement),${csvNumber(settlementBalance)}\n`;
+    csv += `RechargeKit Balance (Recharge),${csvNumber(rechargeKitBalance)}\n`;
     csv += `Total Users,${totalUsers}\n`;
     csv += `Master Distributors,${totalMDs}\n`;
     csv += `Distributors,${totalDistributors}\n`;
@@ -515,18 +533,18 @@ const handleExportReport = async () => {
     //   onClick: () => navigate('/admin/logs')
     // },
     {
-      title: 'RechargeKit Balance \n(Recharge)',
-      value: formatCurrency(rechargeKitBalance),
+      title: 'RechargeKit Balance \n(Settlement)',
+      value: formatCurrency(settlementBalance),
       icon: ShoppingCart,
-      description: 'Available balance',
+      description: 'Primary wallet balance',
       color: 'text-accent',
       onClick: () => {}
     },
      {
-      title: 'RechargeKit Balance \n(Settlement)',
+      title: 'RechargeKit Balance \n(Recharge)',
       value: formatCurrency(rechargeKitBalance),
       icon: ShoppingCart,
-      description: 'Available balance',
+      description: 'Recharge wallet balance',
       color: 'text-accent',
       onClick: () => {}
     },
