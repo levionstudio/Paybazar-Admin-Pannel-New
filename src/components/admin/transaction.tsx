@@ -218,6 +218,7 @@ const AdminWalletTransactions = () => {
 
       setTransactions(mapped);
       
+      console.log(mapped);
       // Set total count - use filtered length if we have data, otherwise use backend total
       const actualCount = mapped.length > 0 ? mapped.length : total;
       setTotalCount(actualCount);

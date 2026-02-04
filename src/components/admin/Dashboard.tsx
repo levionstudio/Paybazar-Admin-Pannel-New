@@ -2,33 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  DollarSign, 
-  Users, 
-  CreditCard, 
-  TrendingUp,
-  AlertTriangle,
-  Activity,
-  FileText,
-  Loader2,
-  Wallet,
-  Building2,
-  UserCog,
-  ShoppingCart
-} from 'lucide-react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import { DollarSign, Users, CreditCard, TrendingUp, AlertTriangle, Activity, FileText, Loader2, Wallet, Building2, UserCog, ShoppingCart, Download } from 'lucide-react';
+import { PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import { toast } from "sonner";
@@ -40,6 +15,24 @@ interface DecodedToken {
   user_role: string;
   exp: number;
   iat: number;
+}
+
+interface FundRequest {
+  fund_request_id: number;
+  requester_id: string;
+  request_to_id: string;
+  amount: number;
+  utr_number: string;
+  bank_name: string;
+  business_name: string;
+  remarks: string;
+  reject_remarks: string;
+  request_status: string;
+  request_type: string;
+  request_date: string;
+  created_at: string;
+  updated_at: string;
+  afterBalance?: number;
 }
 
 interface Transaction {
@@ -55,6 +48,42 @@ interface Transaction {
   transaction_type?: string;
   transfer_type?: string;
   timestamp?: string;
+}
+
+interface MasterDistributor {
+  master_distributor_id: string;
+  admin_id: string;
+  master_distributor_name: string;
+  master_distributor_phone: string;
+  master_distributor_email: string;
+  wallet_balance: number;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Distributor {
+  distributor_id: string;
+  master_distributor_id: string;
+  distributor_name: string;
+  distributor_phone: string;
+  distributor_email: string;
+  wallet_balance: number;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Retailer {
+  retailer_id: string;
+  distributor_id: string;
+  retailer_name: string;
+  retailer_phone: string;
+  retailer_email: string;
+  wallet_balance: number;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 const commissionData = [
@@ -81,7 +110,8 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [adminId, setAdminId] = useState("");
-  
+  const [exportingReport, setExportingReport] = useState(false);
+
   // Stats
   const [totalMDs, setTotalMDs] = useState(0);
   const [totalDistributors, setTotalDistributors] = useState(0);
@@ -90,14 +120,13 @@ export function Dashboard() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [rechargeKitBalance, setRechargeKitBalance] = useState(0);
   const [totalTransactions, setTotalTransactions] = useState(0);
-  
-  // Transaction trends (last 6 months)
-  const [transactionTrends, setTransactionTrends] = useState<any[]>([]);
-  
-  // Recent activities
-  const [recentActivities, setRecentActivities] = useState<Transaction[]>([]);
 
-  const [walletBalance, setWalletBalance] = useState<number>(0);
+  // Transaction trends (last 6 months)
+  const [transactionTrends, setTransactionTrends] = useState([]);
+
+  // Recent fund requests (today's latest 3)
+  const [recentFundRequests, setRecentFundRequests] = useState<FundRequest[]>([]);
+  const [walletBalance, setWalletBalance] = useState(0);
 
   function getAdminIdFromToken(): string | null {
     const token = localStorage.getItem("authToken");
@@ -115,7 +144,7 @@ export function Dashboard() {
     }
   }
 
-  // Initialize adminId from toke
+  // Initialize adminId from token
   useEffect(() => {
     const id = getAdminIdFromToken();
     if (id) {
@@ -137,12 +166,9 @@ export function Dashboard() {
           getAuthHeaders()
         );
 
-        const balance =
-          response.data?.data?.balance ??
-          response.data?.data?.wallet_balance ??
-          response.data?.balance ??
-          0;
-
+        const balance = response.data?.data?.balance ?? 
+                       response.data?.data?.wallet_balance ?? 
+                       response.data?.balance ?? 0;
         setWalletBalance(Number(balance));
       } catch (error) {
         console.error("Wallet fetch failed", error);
@@ -162,94 +188,93 @@ export function Dashboard() {
       try {
         const headers = getAuthHeaders().headers;
 
-        // Fetch Master Distributors
+        // Fetch Master Distributors directly from admin endpoint
         const mdResponse = await axios.get(
-          `${API_BASE_URL}/admin/get/md/${adminId}`,
+          `${API_BASE_URL}/md/get/admin/${adminId}`,
           { headers }
         );
 
-        let masterDistributors: any[] = [];
+        let masterDistributors: MasterDistributor[] = [];
         if (mdResponse.data.status === "success" && mdResponse.data.data) {
-          masterDistributors = Array.isArray(mdResponse.data.data)
-            ? mdResponse.data.data
+          masterDistributors = Array.isArray(mdResponse.data.data) 
+            ? mdResponse.data.data 
             : mdResponse.data.data.master_distributors || [];
         }
 
-        // Fetch all Distributors
-        const distributorPromises = masterDistributors.map((md) =>
-          axios.get(
-            `${API_BASE_URL}/admin/get/distributors/${md.master_distributor_id}`,
-            { headers }
-          ).catch(() => ({ data: { data: [] } }))
-        );
-
-        const distributorResponses = await Promise.all(distributorPromises);
-        let allDistributors: any[] = [];
-        distributorResponses.forEach((response) => {
-          if (response.data.status === "success" && response.data.data) {
-            const dists = Array.isArray(response.data.data)
-              ? response.data.data
-              : response.data.data.distributors || [];
-            allDistributors = [...allDistributors, ...dists];
-          }
-        });
-
-        // Fetch Users (Retailers)
-        const userResponse = await axios.get(
-          `${API_BASE_URL}/admin/get/user/${adminId}`,
+        // Fetch all Distributors directly from admin endpoint
+        const distributorResponse = await axios.get(
+          `${API_BASE_URL}/distributor/get/admin/${adminId}`,
           { headers }
         );
 
-        let users: any[] = [];
-        if (userResponse.data.status === "success" && userResponse.data.data) {
-          users = Array.isArray(userResponse.data.data)
-            ? userResponse.data.data
-            : userResponse.data.data.users || [];
+        let allDistributors: Distributor[] = [];
+        if (distributorResponse.data.status === "success" && distributorResponse.data.data) {
+          allDistributors = Array.isArray(distributorResponse.data.data)
+            ? distributorResponse.data.data
+            : distributorResponse.data.data.distributors || [];
+        }
+
+        // Fetch Retailers directly from admin endpoint
+        const retailerResponse = await axios.get(
+          `${API_BASE_URL}/retailer/get/admin/${adminId}`,
+          { headers }
+        );
+
+        let retailers: Retailer[] = [];
+        if (retailerResponse.data.status === "success" && retailerResponse.data.data) {
+          retailers = Array.isArray(retailerResponse.data.data)
+            ? retailerResponse.data.data
+            : retailerResponse.data.data.retailers || [];
         }
 
         // Calculate wallet balances
         const mdBalance = masterDistributors.reduce(
-          (sum, md) => sum + parseFloat(md.master_distributor_wallet_balance || "0"),
+          (sum, md) => sum + (md.wallet_balance || 0),
           0
         );
+
         const distBalance = allDistributors.reduce(
-          (sum, d) => sum + parseFloat(d.distributor_wallet_balance || "0"),
+          (sum, d) => sum + (d.wallet_balance || 0),
           0
         );
-        const userBalance = users.reduce(
-          (sum, u) => sum + parseFloat(u.user_wallet_balance || "0"),
+
+        const retailerBalance = retailers.reduce(
+          (sum, r) => sum + (r.wallet_balance || 0),
           0
         );
 
         setTotalMDs(masterDistributors.length);
         setTotalDistributors(allDistributors.length);
-        setTotalRetailers(users.length);
-        setTotalUsers(masterDistributors.length + allDistributors.length + users.length);
-        setTotalBalance(mdBalance + distBalance + userBalance);
+        setTotalRetailers(retailers.length);
+        setTotalUsers(masterDistributors.length + allDistributors.length + retailers.length);
+        setTotalBalance(mdBalance + distBalance + retailerBalance);
 
         // Fetch recharge kit balance
-        const rechargeToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZW1iZXJJZCI6MTkyLCJpYXQiOjE3NjE5ODg5MzV9.vES6PQZ2oIKecI6ZYwMZbL3QsvuZu4HZL8ma9WREFug";
-        const rechargeResponse = await axios.get(
-          "https://v2bapi.rechargkit.biz/recharge/balanceCheck",
-          { 
-            headers: { 
-              Authorization: `Bearer ${rechargeToken}` 
-            } 
-          }
-        ).catch(() => ({ data: { error: 1, wallet_amount: 0 } }));
+        try {
+          const rechargeResponse = await axios.get(
+            `https://testing.paybazaar.in/admin/get/rechargekit/wallet/balance`,
+            { headers }
+          );
 
-        if (rechargeResponse.data.error === 0) {
-          setRechargeKitBalance(parseFloat(rechargeResponse.data.wallet_amount || "0"));
+          if (rechargeResponse.data.status === "success" && rechargeResponse.data.data?.response) {
+            const walletAmount = rechargeResponse.data.data.response.wallet_amount || 0;
+            setRechargeKitBalance(parseFloat(walletAmount.toString()));
+          }
+        } catch (error) {
+          console.error("Failed to fetch recharge kit balance:", error);
+          setRechargeKitBalance(0);
         }
 
-        // Fetch admin wallet transactions
+        // Fetch fund requests - Latest 3 from today
+        await fetchTodaysFundRequests(adminId);
+
+        // Fetch admin wallet transactions for graph
         const walletTxnResponse = await axios.get(
           `${API_BASE_URL}/admin/wallet/get/transactions/${adminId}`,
           { headers }
         ).catch(() => ({ data: { status: 'failed', data: [] } }));
 
         let allTransactionsList: Transaction[] = [];
-
         if (walletTxnResponse.data.status === "success" && walletTxnResponse.data.data) {
           const walletTxns = Array.isArray(walletTxnResponse.data.data)
             ? walletTxnResponse.data.data
@@ -275,20 +300,6 @@ export function Dashboard() {
         // Process transaction trends (last 6 months)
         const monthlyData = processTransactionTrends(allTransactionsList);
         setTransactionTrends(monthlyData);
-        
-        // Sort and get latest 4 transactions
-        const sortedTxn = allTransactionsList.sort((a: Transaction, b: Transaction) => {
-          const getTimestamp = (tx: Transaction) => {
-            const dateField = tx.transaction_date_and_time || tx.transaction_date || tx.created_at || tx.timestamp;
-            if (dateField) {
-              return new Date(dateField).getTime();
-            }
-            return parseInt(tx.transaction_id) || 0;
-          };
-          return getTimestamp(b) - getTimestamp(a);
-        }).slice(0, 4);
-        
-        setRecentActivities(sortedTxn);
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -301,6 +312,48 @@ export function Dashboard() {
     fetchDashboardData();
   }, [adminId]);
 
+  // Fetch today's latest 3 fund requests
+  const fetchTodaysFundRequests = async (userId: string) => {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+
+      const payload = {
+        id: userId,
+        start_date: startOfDay,
+        end_date: endOfDay,
+      };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/fund_request/get/request_to`,
+        payload,
+        getAuthHeaders()
+      );
+
+      const data = response.data.data;
+      const requestsList = Array.isArray(data?.fund_requests) ? data.fund_requests : [];
+
+      // Sort by created_at (latest first) and take top 3
+      const sortedRequests = [...requestsList].sort((a: FundRequest, b: FundRequest) => {
+        try {
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
+          const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+          const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+          return timeB - timeA;
+        } catch {
+          return 0;
+        }
+      }).slice(0, 3);
+
+      setRecentFundRequests(sortedRequests);
+    } catch (error) {
+      console.error("Failed to fetch today's fund requests:", error);
+      setRecentFundRequests([]);
+    }
+  };
+
   // Process transaction trends for last 6 months
   const processTransactionTrends = (transactions: Transaction[]) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -310,10 +363,17 @@ export function Dashboard() {
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = months[date.getMonth()];
-      
+
       const monthTxns = transactions.filter(tx => {
-        const txDate = new Date(tx.transaction_date_and_time || tx.transaction_date || tx.created_at || tx.timestamp || 0);
-        return txDate.getMonth() === date.getMonth() && txDate.getFullYear() === date.getFullYear();
+        const txDate = new Date(
+          tx.transaction_date_and_time || 
+          tx.transaction_date || 
+          tx.created_at || 
+          tx.timestamp || 
+          0
+        );
+        return txDate.getMonth() === date.getMonth() && 
+               txDate.getFullYear() === date.getFullYear();
       });
 
       const creditTotal = monthTxns
@@ -333,9 +393,84 @@ export function Dashboard() {
 
     return last6Months;
   };
+const csvEscape = (value: any) => {
+  if (value === null || value === undefined) return "";
+  const str = String(value).replace(/"/g, '""');
+  return `"${str}"`;
+};
+
+const csvNumber = (value: any) => {
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
+
+  // Export Report Function
+const handleExportReport = async () => {
+  setExportingReport(true);
+  try {
+    let csv = "";
+
+    // ================= HEADER =================
+    csv += "Dashboard Report\n";
+    csv += `Generated At,${csvEscape(new Date().toLocaleString())}\n\n`;
+
+    // ================= SUMMARY =================
+    csv += "SUMMARY\n";
+    csv += "Metric,Value\n";
+    csv += `Admin Wallet Balance,${csvNumber(walletBalance)}\n`;
+    csv += `Total Network Balance,${csvNumber(totalBalance)}\n`;
+    csv += `Recharge Kit Balance,${csvNumber(rechargeKitBalance)}\n`;
+    csv += `Total Users,${totalUsers}\n`;
+    csv += `Master Distributors,${totalMDs}\n`;
+    csv += `Distributors,${totalDistributors}\n`;
+    csv += `Retailers,${totalRetailers}\n`;
+
+ 
+
+    // ================= FUND REQUESTS =================
+    csv += "RECENT FUND REQUESTS (Today)\n";
+    csv += "Request ID,Requester ID,Amount,Status,Bank,Business,UTR,Remarks,Created At\n";
+
+    recentFundRequests.forEach((r) => {
+      csv += [
+        r.fund_request_id,
+        csvEscape(r.requester_id),
+        csvNumber(r.amount),
+        csvEscape(r.request_status),
+        csvEscape(r.bank_name),
+        csvEscape(r.business_name),
+        csvEscape(r.utr_number),
+        csvEscape(r.remarks),
+        csvEscape(new Date(r.created_at).toLocaleString()),
+      ].join(",") + "\n";
+    });
+
+    // ================= DOWNLOAD =================
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `dashboard_report_${new Date()
+      .toISOString()
+      .split("T")[0]}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Report exported successfully");
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to export report");
+  } finally {
+    setExportingReport(false);
+  }
+};
+
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   };
 
   const formatTime = (dateString: string) => {
@@ -343,7 +478,7 @@ export function Dashboard() {
     const now = new Date();
     const date = new Date(dateString);
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000 / 60);
-    
+
     if (diff < 1) return 'Just now';
     if (diff < 60) return `${diff} mins ago`;
     if (diff < 1440) return `${Math.floor(diff / 60)} hours ago`;
@@ -352,10 +487,12 @@ export function Dashboard() {
 
   const getStatusBadge = (status: string) => {
     const statusUpper = status?.toUpperCase();
-    if (statusUpper === 'SUCCESS') {
-      return { variant: 'default' as const, className: 'bg-success text-success-foreground' };
+    if (statusUpper === 'SUCCESS' || statusUpper === 'APPROVED') {
+      return { variant: 'default' as const, className: 'bg-green-500 text-white' };
     } else if (statusUpper === 'PENDING') {
-      return { variant: 'secondary' as const, className: 'bg-warning text-warning-foreground' };
+      return { variant: 'secondary' as const, className: 'bg-yellow-500 text-white' };
+    } else if (statusUpper === 'REJECTED') {
+      return { variant: 'destructive' as const, className: 'bg-red-500 text-white' };
     }
     return { variant: 'outline' as const, className: 'border-primary text-primary' };
   };
@@ -397,9 +534,9 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
@@ -407,19 +544,34 @@ export function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 space-y-8">
+    <div className="space-y-6 p-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-poppins text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Welcome back! Here's what's happening with your platform.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back! Here's what's happening with your platform.
+          </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex space-x-3">
-          <Button variant="outline" onClick={() => window.location.reload()}>Export Report</Button>
+        <div className="flex gap-2">
           <Button 
-            className="gradient-primary text-primary-foreground shadow-glow"
-            onClick={() => navigate('/admin/logs')}
+            variant="outline" 
+            onClick={handleExportReport}
+            disabled={exportingReport}
           >
+            {exportingReport ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Export Report
+              </>
+            )}
+          </Button>
+          <Button onClick={() => navigate('/admin/logs')}>
             <TrendingUp className="mr-2 h-4 w-4" />
             View Analytics
           </Button>
@@ -427,26 +579,26 @@ export function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <Card 
               key={index} 
-              className="shadow-card hover:shadow-elevated transition-all duration-200 cursor-pointer"
+              className="cursor-pointer hover:shadow-lg transition-shadow"
               onClick={stat.onClick}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-sm font-medium">
                   {stat.title}
                 </CardTitle>
-                <Icon className={`h-5 w-5 ${stat.color}`} />
+                <Icon className={`h-4 w-4 ${stat.color}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-poppins text-foreground">{stat.value}</div>
-                <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                  <span>{stat.description}</span>
-                </div>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stat.description}
+                </p>
               </CardContent>
             </Card>
           );
@@ -454,94 +606,80 @@ export function Dashboard() {
       </div>
 
       {/* Secondary Stats - Network Breakdown */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              Master Distributors
-            </CardTitle>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Master Distributors</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-poppins text-foreground">{totalMDs}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total MDs in network</p>
+            <div className="text-2xl font-bold">{totalMDs}</div>
+            <p className="text-xs text-muted-foreground">Total MDs in network</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <UserCog className="h-4 w-4 text-primary" />
-              Distributors
-            </CardTitle>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Distributors</CardTitle>
+            <UserCog className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-poppins text-foreground">{totalDistributors}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active distributors</p>
+            <div className="text-2xl font-bold">{totalDistributors}</div>
+            <p className="text-xs text-muted-foreground">Active distributors</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Retailers
-            </CardTitle>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Retailers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-poppins text-foreground">{totalRetailers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total retailers</p>
+            <div className="text-2xl font-bold">{totalRetailers}</div>
+            <p className="text-xs text-muted-foreground">Total retailers</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Section */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-1">
         {/* Transaction Trends */}
-        <Card className="lg:col-span-2 shadow-card">
+        {/* <Card>
           <CardHeader>
-            <CardTitle className="font-poppins">Transaction Trends</CardTitle>
+            <CardTitle>Transaction Trends</CardTitle>
             <CardDescription>Credit vs Debit over last 6 months</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={transactionTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 'var(--radius)'
-                  }}
-                />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
                 <Legend />
                 <Area 
                   type="monotone" 
                   dataKey="credit" 
                   stackId="1" 
                   stroke="hsl(142 76% 36%)" 
-                  fill="hsl(142 76% 36% / 0.8)" 
-                  name="Credit"
+                  fill="hsl(142 76% 36%)" 
                 />
                 <Area 
                   type="monotone" 
                   dataKey="debit" 
-                  stackId="1" 
+                  stackId="2" 
                   stroke="hsl(0 84% 60%)" 
-                  fill="hsl(0 84% 60% / 0.8)" 
-                  name="Debit"
+                  fill="hsl(0 84% 60%)" 
                 />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Commission Distribution */}
-        <Card className="shadow-card">
+        <Card>
           <CardHeader>
-            <CardTitle className="font-poppins">Commission Distribution</CardTitle>
+            <CardTitle>Commission Distribution</CardTitle>
             <CardDescription>Revenue share by role</CardDescription>
           </CardHeader>
           <CardContent>
@@ -551,23 +689,17 @@ export function Dashboard() {
                   data={commissionData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  labelLine={false}
+                  label={(entry) => `${entry.name}: ${entry.value}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
                   dataKey="value"
                 >
                   {commissionData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 'var(--radius)'
-                  }}
-                  formatter={(value: number) => `${value}%`}
-                />
-                <Legend />
+                <Tooltip formatter={(value) => `${value}%`} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -575,134 +707,130 @@ export function Dashboard() {
       </div>
 
       {/* Recent Activity & Quick Actions */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Activities */}
-        <Card className="lg:col-span-2 shadow-card">
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Recent Fund Requests (Today's Latest 3) */}
+        <Card>
           <CardHeader>
-            <CardTitle className="font-poppins flex items-center">
-              <Activity className="mr-2 h-5 w-5 text-primary" />
-              Recent Activities
-            </CardTitle>
-            <CardDescription>Latest transactions and user activities</CardDescription>
+            <CardTitle>Recent Fund Requests</CardTitle>
+            <CardDescription>Today's latest requests</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivities.length === 0 ? (
+              {recentFundRequests.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No recent transactions
+                  <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No fund requests today</p>
                 </div>
               ) : (
-                recentActivities.map((activity) => {
-                  const badge = getStatusBadge(activity.transaction_status);
-                  const displayName = activity.phone_number || activity.transactor_name || activity.receiver_name || 'N/A';
+                recentFundRequests.map((request) => {
+                  const badge = getStatusBadge(request.request_status);
+
                   return (
                     <div 
-                      key={activity.transaction_id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                      key={request.fund_request_id} 
+                      className="flex items-center justify-between border-b pb-3 last:border-0"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
-                          <div className="font-medium text-foreground font-mono text-sm">
-                            {displayName}
-                          </div>
-                          <Badge 
-                            variant={badge.variant}
-                            className={badge.className}
-                          >
-                            {activity.transaction_status}
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{request.business_name}</p>
+                          <Badge {...badge}>
+                            {request.request_status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {activity.transfer_type || activity.transaction_type || 'Transaction'}
+                        <p className="text-xs text-muted-foreground">
+                          {request.bank_name} • UTR: {request.utr_number}
+                        </p>
+                        <p className="text-xs text-muted-foreground italic">
+                          "{request.remarks}"
                         </p>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-foreground">
-                          ₹{parseFloat(activity.amount || '0').toLocaleString('en-IN')}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatTime(
-                            activity.transaction_date_and_time || 
-                            activity.transaction_date || 
-                            activity.created_at || 
-                            ''
-                          )}
-                        </div>
+                      <div className="text-right ml-4">
+                        <p className="text-sm font-bold">
+                          ₹{request.amount.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatTime(request.created_at)}
+                        </p>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
+          </CardContent>
+          <div className="px-6 pb-4">
             <Button 
               variant="outline" 
-              className="w-full mt-4"
-              onClick={() => navigate('/admin/logs')}
+              className="w-full" 
+              onClick={() => navigate('/admin/fund-requests')}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              View All Logs
+              View All Requests
             </Button>
-          </CardContent>
+          </div>
         </Card>
 
         {/* Quick Actions */}
-        <Card className="shadow-card">
+        <Card>
           <CardHeader>
-            <CardTitle className="font-poppins flex items-center">
-              <AlertTriangle className="mr-2 h-5 w-5 text-warning" />
-              Quick Actions
-            </CardTitle>
+            <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
-                  <span className="text-sm font-medium">Master Distributors</span>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base">Master Distributors</CardTitle>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">View and manage MDs</p>
+                <CardDescription>View and manage MDs</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Button 
-                  size="sm" 
                   variant="outline" 
-                  className="mt-2 w-full"
+                  className="w-full" 
                   onClick={() => navigate('/admin/info/md')}
                 >
                   View MDs
                 </Button>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">User Management</span>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base">User Management</CardTitle>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Manage retailer & distributor access</p>
+                <CardDescription>Manage retailer & distributor access</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Button 
-                  size="sm" 
                   variant="outline" 
-                  className="mt-2 w-full"
+                  className="w-full" 
                   onClick={() => navigate('/admin/info/md')}
                 >
                   Manage Users
                 </Button>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="p-3 bg-accent/10 border border-accent/20 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-medium">Wallet Transactions</span>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base">Wallet Transactions</CardTitle>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">View wallet transaction history</p>
+                <CardDescription>View wallet transaction history</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Button 
-                  size="sm" 
                   variant="outline" 
-                  className="mt-2 w-full"
+                  className="w-full" 
                   onClick={() => navigate('/admin/logs')}
                 >
                   View Transactions
                 </Button>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </CardContent>
         </Card>
       </div>
