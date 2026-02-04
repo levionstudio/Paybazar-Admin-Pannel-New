@@ -49,14 +49,15 @@ interface FundRequest {
   fund_request_id: number;
   requester_id: string;
   request_to_id: string;
-  amount: string;
-  bank_name: string;
+  business_name: string;
+  amount: number;
+  bank_name: string | null;
   request_date: string;
-  utr_number: string;
+  utr_number: string | null;
+  request_type: string;
   request_status: string;
   remarks: string;
-  reject_remarks?: string;
-  business_name: string;
+  reject_remarks: string;
   created_at: string;
   updated_at: string;
 }
@@ -97,7 +98,7 @@ export function FundRequest() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   
-  // Pagination with server-side support
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -172,11 +173,7 @@ export function FundRequest() {
     }
 
     try {
-      // Pagination via query parameters
-      const limit = recordsPerPage;
-      const offset = (currentPage - 1) * recordsPerPage;
-      
-      // Build payload for POST body (filters only)
+      // Build payload for POST body
       const payload: {
         id: string;
         status?: string;
@@ -191,15 +188,14 @@ export function FundRequest() {
         payload.status = statusFilter;
       }
       if (startDate) {
-        payload.start_date = new Date(startDate).toISOString();
+        payload.start_date = new Date(`${startDate}T00:00:00`).toISOString();
       }
       if (endDate) {
-        payload.end_date = new Date(endDate + "T23:59:59").toISOString();
+        payload.end_date = new Date(`${endDate}T23:59:59`).toISOString();
       }
 
-      // Send limit and offset as query parameters
       const response = await axios.post(
-        `${API_BASE_URL}/fund_request/get/request_to?limit=${limit}&offset=${offset}`,
+        `${API_BASE_URL}/fund_request/get/request_to`,
         payload,
         getAuthHeaders()
       );
@@ -207,16 +203,13 @@ export function FundRequest() {
       const data = response.data.data;
       const requestsList = Array.isArray(data.fund_requests) ? data.fund_requests : [];
       
-      // Get total count from response or calculate from results
-      const totalCount = data.total_count !== undefined 
-        ? data.total_count 
-        : requestsList.length;
+      const totalCount = data.total || requestsList.length;
 
-      // Sort by request_date (latest first)
+      // Sort by created_at (latest first)
       const sortedRequests = [...requestsList].sort((a: FundRequest, b: FundRequest) => {
         try {
-          const dateA = new Date(a.request_date);
-          const dateB = new Date(b.request_date);
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
           const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
           const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
           return timeB - timeA;
@@ -248,9 +241,9 @@ export function FundRequest() {
 
   useEffect(() => {
     fetchRequests();
-  }, [statusFilter, startDate, endDate, currentPage, recordsPerPage]);
+  }, [statusFilter, startDate, endDate]);
 
-  // Apply search filter (client-side on current page results)
+  // Apply search filter and pagination (client-side)
   useEffect(() => {
     let filtered = [...requests];
 
@@ -264,12 +257,20 @@ export function FundRequest() {
           req.request_to_id?.toLowerCase().includes(searchLower) ||
           req.fund_request_id?.toString().includes(searchLower) ||
           req.amount?.toString().includes(searchLower) ||
-          req.bank_name?.toLowerCase().includes(searchLower)
+          req.bank_name?.toLowerCase().includes(searchLower) ||
+          req.business_name?.toLowerCase().includes(searchLower) ||
+          req.request_type?.toLowerCase().includes(searchLower)
       );
     }
 
-    setFilteredRequests(filtered);
-  }, [searchTerm, requests]);
+    // Client-side pagination
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    const endIndex = startIndex + recordsPerPage;
+    const paginatedData = filtered.slice(startIndex, endIndex);
+
+    setFilteredRequests(paginatedData);
+    setTotalRecords(filtered.length);
+  }, [searchTerm, requests, currentPage, recordsPerPage]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -283,26 +284,45 @@ export function FundRequest() {
   // Export to Excel
   const exportToExcel = () => {
     try {
-      const exportData = filteredRequests.map((req, index) => ({
-        "S.No": ((currentPage - 1) * recordsPerPage) + index + 1,
+      // Export all filtered data (not just current page)
+      let allFilteredData = [...requests];
+      
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        allFilteredData = allFilteredData.filter(
+          (req) =>
+            req.utr_number?.toLowerCase().includes(searchLower) ||
+            req.requester_id?.toLowerCase().includes(searchLower) ||
+            req.request_to_id?.toLowerCase().includes(searchLower) ||
+            req.fund_request_id?.toString().includes(searchLower) ||
+            req.amount?.toString().includes(searchLower) ||
+            req.bank_name?.toLowerCase().includes(searchLower) ||
+            req.business_name?.toLowerCase().includes(searchLower) ||
+            req.request_type?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      const exportData = allFilteredData.map((req, index) => ({
+        "S.No": index + 1,
         "Request Date": formatDate(req.request_date),
         "Request ID": req.fund_request_id || "N/A",
         "Requester ID": req.requester_id || "N/A",
         "Request To ID": req.request_to_id || "N/A",
-        "Amount (₹)": req.amount || "0",
-        "Bank Name": req.bank_name || "N/A",
-        "UTR Number": req.utr_number || "N/A",
+        "Business Name": req.business_name || "N/A",
+        "Request Type": req.request_type || "N/A",
+        "Amount (₹)": req.amount?.toFixed(2) || "0.00",
+        "Bank Name": req.bank_name || "-",
+        "UTR Number": req.utr_number || "-",
         "Remarks": req.remarks || "N/A",
         "Status": req.request_status || "N/A",
-        "Rejection Reason": req.reject_remarks || "N/A",
-        "Business Name": req.business_name || "N/A",
+        "Rejection Reason": req.reject_remarks || "-",
         "Created At": formatDateTime(req.created_at),
         "Updated At": formatDateTime(req.updated_at),
       }));
 
       // Add summary row
-      const totalAmount = filteredRequests.reduce(
-        (sum, req) => sum + parseFloat(req.amount || "0"),
+      const totalAmount = allFilteredData.reduce(
+        (sum, req) => sum + (req.amount || 0),
         0
       );
 
@@ -312,13 +332,14 @@ export function FundRequest() {
         "Request ID": "TOTAL",
         "Requester ID": "",
         "Request To ID": "",
+        "Business Name": "",
+        "Request Type": "",
         "Amount (₹)": totalAmount.toFixed(2),
         "Bank Name": "",
         "UTR Number": "",
         "Remarks": "",
         "Status": "",
         "Rejection Reason": "",
-        "Business Name": "",
         "Created At": "",
         "Updated At": "",
       };
@@ -333,13 +354,14 @@ export function FundRequest() {
         { wch: 15 }, // Request ID
         { wch: 20 }, // Requester ID
         { wch: 20 }, // Request To ID
+        { wch: 25 }, // Business Name
+        { wch: 12 }, // Request Type
         { wch: 15 }, // Amount
         { wch: 25 }, // Bank Name
         { wch: 25 }, // UTR
         { wch: 35 }, // Remarks
         { wch: 12 }, // Status
         { wch: 35 }, // Rejection Reason
-        { wch: 25 }, // Bussiness Name
         { wch: 20 }, // Created At
         { wch: 20 }, // Updated At
       ];
@@ -355,7 +377,7 @@ export function FundRequest() {
 
       toast({
         title: "Success",
-        description: "Fund requests exported successfully",
+        description: `Exported ${allFilteredData.length} fund requests successfully`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -368,18 +390,12 @@ export function FundRequest() {
   };
 
   const handleAccept = async (requestId: number) => {
-    const userId = getAdminIdFromToken();
-    if (!userId) return;
-
     setProcessingAction({ requestId, action: "accept" });
 
     try {
       await axios.put(
         `${API_BASE_URL}/fund_request/accept/${requestId}`,
-        {
-          admin_id: userId,
-          request_id: requestId,
-        },
+        {},
         getAuthHeaders()
       );
 
@@ -481,6 +497,26 @@ export function FundRequest() {
     }
   };
 
+  const getRequestTypeBadge = (type: string) => {
+    const typeUpper = type?.toUpperCase();
+    switch (typeUpper) {
+      case "NORMAL":
+        return (
+          <Badge className="bg-blue-50 text-blue-700 border-blue-300">
+            Normal
+          </Badge>
+        );
+      case "ADVANCE":
+        return (
+          <Badge className="bg-purple-50 text-purple-700 border-purple-300">
+            Advance
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{type || "-"}</Badge>;
+    }
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
@@ -514,7 +550,7 @@ export function FundRequest() {
     return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
   };
 
-  // Pagination logic (server-side)
+  // Pagination logic
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
 
   const isProcessing = (requestId: number, action: "accept" | "reject") => {
@@ -574,7 +610,10 @@ export function FundRequest() {
               <Input
                 placeholder="Search by UTR, ID, Amount..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="bg-white"
               />
             </div>
@@ -582,7 +621,10 @@ export function FundRequest() {
             {/* Status Filter */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(value) => {
+                setStatusFilter(value);
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger className="bg-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -590,6 +632,7 @@ export function FundRequest() {
                   <SelectItem value="ALL">All Status</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="ACCEPTED">Accepted</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="REJECTED">Rejected</SelectItem>
                 </SelectContent>
               </Select>
@@ -604,7 +647,11 @@ export function FundRequest() {
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                max={new Date().toISOString().split('T')[0]}
                 className="bg-white"
               />
             </div>
@@ -618,8 +665,12 @@ export function FundRequest() {
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                // max={new Date().toISOString().split('T')[0]}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                min={startDate}
+                max={new Date().toISOString().split('T')[0]}
                 className="bg-white"
               />
             </div>
@@ -675,7 +726,7 @@ export function FundRequest() {
                 onClick={exportToExcel}
                 variant="outline"
                 size="sm"
-                disabled={filteredRequests.length === 0}
+                disabled={requests.length === 0}
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export
@@ -711,7 +762,12 @@ export function FundRequest() {
                     <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
                       Request To
                     </TableHead>
-                    <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">Business Name</TableHead>
+                    <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
+                      Business Name
+                    </TableHead>
+                    <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
+                      Request Type
+                    </TableHead>
                     <TableHead className="text-center text-xs font-semibold uppercase text-gray-700">
                       Amount (₹)
                     </TableHead>
@@ -747,15 +803,23 @@ export function FundRequest() {
                       <TableCell className="py-3 text-center font-mono text-sm text-blue-600">
                         {request.request_to_id}
                       </TableCell>
-                      <TableCell className="py-3 text-center text-sm font-semibold ">{request.business_name || "N/A"}</TableCell>
+                      <TableCell className="py-3 text-center text-sm font-semibold">
+                        {request.business_name || "N/A"}
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        {getRequestTypeBadge(request.request_type)}
+                      </TableCell>
                       <TableCell className="py-3 text-center text-sm font-semibold text-green-600">
-                        ₹{request.amount}
+                        ₹{request.amount?.toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </TableCell>
                       <TableCell className="py-3 text-center text-sm text-gray-900">
-                        {request.bank_name || "N/A"}
+                        {request.bank_name || "-"}
                       </TableCell>
                       <TableCell className="py-3 text-center font-mono text-sm text-gray-900">
-                        {request.utr_number}
+                        {request.utr_number || "-"}
                       </TableCell>
                       <TableCell className="py-3 text-center">
                         {request.remarks ? (
