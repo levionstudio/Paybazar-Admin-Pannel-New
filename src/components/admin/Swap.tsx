@@ -126,7 +126,7 @@ export function UserHierarchySwap() {
     }
   }
 
-  /* -------------------- FETCH DATA -------------------- */
+  /* -------------------- FETCH DATA WITH limit=10000 TO GET ALL -------------------- */
   const fetchAllData = async () => {
     setLoading(true);
     const adminId = getAdminIdFromToken();
@@ -142,25 +142,25 @@ export function UserHierarchySwap() {
     }
 
     try {
-      // Fetch all Master Distributors
+      // Fetch ALL Master Distributors (limit=10000)
       const mdResponse = await axios.get(
-        `${API_BASE_URL}/md/get/admin/${adminId}`,
+        `${API_BASE_URL}/md/get/admin/${adminId}?limit=10000`,
         getAuthHeaders()
       );
       const masterDistributors = mdResponse.data.data.master_distributors || [];
       setAllMDs(masterDistributors);
 
-      // Fetch all Distributors
+      // Fetch ALL Distributors (limit=10000)
       const distResponse = await axios.get(
-        `${API_BASE_URL}/distributor/get/admin/${adminId}`,
+        `${API_BASE_URL}/distributor/get/admin/${adminId}?limit=10000`,
         getAuthHeaders()
       );
       const distributors = distResponse.data.data.distributors || [];
       setAllDistributors(distributors);
 
-      // Fetch all Retailers
+      // Fetch ALL Retailers (limit=10000)
       const retailerResponse = await axios.get(
-        `${API_BASE_URL}/retailer/get/admin/${adminId}`,
+        `${API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000`,
         getAuthHeaders()
       );
       const retailers = retailerResponse.data.data.retailers || [];
@@ -188,6 +188,11 @@ export function UserHierarchySwap() {
       });
 
       setHierarchy(hierarchyData);
+      
+      toast({
+        title: "Data Loaded Successfully",
+        description: `Loaded ${masterDistributors.length} MDs, ${distributors.length} Distributors, ${retailers.length} Retailers`,
+      });
     } catch (error: any) {
       console.error("=== Fetch Hierarchy Error ===");
       console.error("Error:", error.response?.data);
