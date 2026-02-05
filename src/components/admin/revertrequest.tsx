@@ -91,7 +91,7 @@ export default function RefundRequest() {
     return labels[type] || "";
   };
 
-  // Fetch all users when user type changes
+  // Fetch all users when user type changes (without pagination - get all at once)
 const fetchUsers = async (type: string) => {
   if (!type || !adminId) return;
 
@@ -106,15 +106,15 @@ const fetchUsers = async (type: string) => {
 
     switch (type) {
       case "master-distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?limit=10000`;
         break;
 
       case "distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}?limit=10000`;
         break;
 
       case "retailer":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}`;
+        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000`;
         break;
 
       default:
@@ -419,10 +419,10 @@ const fetchUserDetails = async (userId: string) => {
                       <SelectValue
                         placeholder={
                           isLoadingUsers
-                            ? "Loading users..."
+                            ? `Loading all ${getUserTypeLabel(userType)}s...`
                             : userOptions.length === 0
                             ? "No users available"
-                            : "Select a user"
+                            : `Select from ${userOptions.length} users`
                         }
                       />
                     </SelectTrigger>
@@ -442,7 +442,7 @@ const fetchUserDetails = async (userId: string) => {
                   {isLoadingUsers && (
                     <p className="text-xs text-gray-500 flex items-center gap-1">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Loading {getUserTypeLabel(userType)}s...
+                      Fetching all {getUserTypeLabel(userType)}s...
                     </p>
                   )}
                 </div>
@@ -633,6 +633,10 @@ const fetchUserDetails = async (userId: string) => {
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
               <span>Select the user type before choosing a user</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-paybazaar-blue mt-1">•</span>
+              <span>All users of the selected type will be loaded at once</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
