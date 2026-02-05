@@ -19,9 +19,8 @@ import {
   CreditCard,
   UserCog,
   IndianRupee,
-  Bus,
-  File,
-  Home,
+  Search,
+  X,
   HomeIcon
 } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
@@ -40,6 +39,7 @@ interface UserOption {
   name: string;
   phone: string;
   balance: number;
+  Business: string;
 }
 
 interface UserDetails {
@@ -56,6 +56,8 @@ export default function RefundRequest() {
   const [amount, setAmount] = useState("");
   const [remarks, setRemarks] = useState("");
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+  const [filteredUserOptions, setFilteredUserOptions] = useState<UserOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -82,6 +84,26 @@ export default function RefundRequest() {
     }
   }, []);
 
+  // Filter users based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredUserOptions(userOptions);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = userOptions.filter((user) => {
+      const matchesId = user.id.toLowerCase().includes(query);
+      const matchesName = user.name.toLowerCase().includes(query);
+      const matchesPhone = user.phone.includes(query);
+      const matchesBusiness = user.Business?.toLowerCase().includes(query);
+      
+      return matchesId || matchesName || matchesPhone || matchesBusiness;
+    });
+
+    setFilteredUserOptions(filtered);
+  }, [searchQuery, userOptions]);
+
   const getUserTypeLabel = (type: string) => {
     const labels = {
       "master-distributor": "Master Distributor",
@@ -92,169 +114,169 @@ export default function RefundRequest() {
   };
 
   // Fetch all users when user type changes (without pagination - get all at once)
-const fetchUsers = async (type: string) => {
-  if (!type || !adminId) return;
+  const fetchUsers = async (type: string) => {
+    if (!type || !adminId) return;
 
-  setIsLoadingUsers(true);
-  setUserOptions([]);
-  setSelectedUserId("");
-  setUserDetails(null);
+    setIsLoadingUsers(true);
+    setUserOptions([]);
+    setFilteredUserOptions([]);
+    setSelectedUserId("");
+    setUserDetails(null);
+    setSearchQuery("");
 
-  try {
-    const token = localStorage.getItem("authToken");
-    let endpoint = "";
+    try {
+      const token = localStorage.getItem("authToken");
+      let endpoint = "";
 
-    switch (type) {
-      case "master-distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?limit=10000`;
-        break;
+      switch (type) {
+        case "master-distributor":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/admin/${adminId}?limit=10000`;
+          break;
 
-      case "distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}?limit=10000`;
-        break;
+        case "distributor":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/admin/${adminId}?limit=10000`;
+          break;
 
-      case "retailer":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000`;
-        break;
+        case "retailer":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000`;
+          break;
 
-      default:
+        default:
+          return;
+      }
+
+      const { data } = await axios.get(endpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (data.status !== "success") {
+        toast.error("Failed to load users");
         return;
+      }
+
+      let users: UserOption[] = [];
+
+      // ✅ CORRECT MAPPING (MATCH BACKEND)
+      if (type === "master-distributor") {
+        users = (data.data.master_distributors || []).map((md: any) => ({
+          id: md.master_distributor_id,
+          name: md.master_distributor_name,
+          phone: md.master_distributor_phone,
+          balance: Number(md.wallet_balance || 0),
+          Business: md.business_name,
+        }));
+      }
+
+      if (type === "distributor") {
+        users = (data.data.distributors || []).map((dist: any) => ({
+          id: dist.distributor_id,
+          name: dist.distributor_name,
+          phone: dist.distributor_phone,
+          balance: Number(dist.wallet_balance || 0),
+          Business: dist.business_name,
+        }));
+      }
+
+      if (type === "retailer") {
+        users = (data.data.retailers || []).map((ret: any) => ({
+          id: ret.retailer_id,
+          name: ret.retailer_name,
+          phone: ret.retailer_phone,
+          balance: Number(ret.wallet_balance || 0),
+          Business: ret.business_name,
+        }));
+      }
+
+      setUserOptions(users);
+      setFilteredUserOptions(users);
+      toast.success(`Loaded ${users.length} ${getUserTypeLabel(type)}(s)`);
+
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to fetch users"
+      );
+    } finally {
+      setIsLoadingUsers(false);
     }
+  };
 
-    const { data } = await axios.get(endpoint, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+  const fetchUserDetails = async (userId: string) => {
+    if (!userId || !userType) return;
 
-    if (data.status !== "success") {
-      toast.error("Failed to load users");
-      return;
-    }
+    try {
+      const token = localStorage.getItem("authToken");
+      let endpoint = "";
 
-    let users: UserOption[] = [];
+      switch (userType) {
+        case "master-distributor":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/md/${userId}`;
+          break;
 
-    // ✅ CORRECT MAPPING (MATCH BACKEND)
-    if (type === "master-distributor") {
-      users = (data.data.master_distributors || []).map((md: any) => ({
-        id: md.master_distributor_id,
-        name: md.master_distributor_name,
-        phone: md.master_distributor_phone,
-        balance: Number(md.wallet_balance || 0),
-        Business: md.business_name,
-      }));
-    }
+        case "distributor":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/distributor/${userId}`;
+          break;
 
-    if (type === "distributor") {
-      users = (data.data.distributors || []).map((dist: any) => ({
-        id: dist.distributor_id,
-        name: dist.distributor_name,
-        phone: dist.distributor_phone,
-        balance: Number(dist.wallet_balance || 0),
-        Business: dist.business_name,
-      }));
-    }
+        case "retailer":
+          endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/retailer/${userId}`;
+          break;
+      }
 
-    if (type === "retailer") {
-      users = (data.data.retailers || []).map((ret: any) => ({
-        id: ret.retailer_id,
-        name: ret.retailer_name,
-        phone: ret.retailer_phone,
-        balance: Number(ret.wallet_balance || 0),
-        Business: ret.business_name,
-      }));
-    }
+      const { data } = await axios.get(endpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    setUserOptions(users);
-    toast.success(`Loaded ${users.length} ${getUserTypeLabel(type)}(s)`);
+      if (data.status !== "success") {
+        toast.error("Failed to fetch user details");
+        return;
+      }
 
-  } catch (error: any) {
-    console.error("Error fetching users:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to fetch users"
-    );
-  } finally {
-    setIsLoadingUsers(false);
-  }
-};
+      let user: any;
 
+      if (userType === "master-distributor") {
+        user = data.data.master_distributor;
+      } else if (userType === "distributor") {
+        user = data.data.distributor;
+      } else if (userType === "retailer") {
+        user = data.data.retailer;
+      }
 
-const fetchUserDetails = async (userId: string) => {
-  if (!userId || !userType) return;
+      if (!user) {
+        toast.error("User not found");
+        return;
+      }
 
-  try {
-    const token = localStorage.getItem("authToken");
-    let endpoint = "";
-
-    switch (userType) {
-      case "master-distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/md/get/md/${userId}`;
-        break;
-
-      case "distributor":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/distributor/get/distributor/${userId}`;
-        break;
-
-      case "retailer":
-        endpoint = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/retailer/${userId}`;
-        break;
-    }
-
-    const { data } = await axios.get(endpoint, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (data.status !== "success") {
-      toast.error("Failed to fetch user details");
-      return;
-    }
-
-    let user: any;
-
-    if (userType === "master-distributor") {
-      user = data.data.master_distributor;
-    } else if (userType === "distributor") {
-      user = data.data.distributor;
-    } else if (userType === "retailer") {
-      user = data.data.retailer;
-    }
-
-    if (!user) {
-      toast.error("User not found");
-      return;
-    }
-
-    setUserDetails({
-      name:
-        user.master_distributor_name ||
-        user.distributor_name ||
-        user.retailer_name,
+      setUserDetails({
+        name:
+          user.master_distributor_name ||
+          user.distributor_name ||
+          user.retailer_name,
         Business: user.business_name,
-      phone:
-        user.master_distributor_phone ||
-        user.distributor_phone ||
-        user.retailer_phone,
-      userId:
-        user.master_distributor_id ||
-        user.distributor_id ||
-        user.retailer_id,
-      currentBalance: Number(user.wallet_balance || 0),
-    });
+        phone:
+          user.master_distributor_phone ||
+          user.distributor_phone ||
+          user.retailer_phone,
+        userId:
+          user.master_distributor_id ||
+          user.distributor_id ||
+          user.retailer_id,
+        currentBalance: Number(user.wallet_balance || 0),
+      });
 
-    toast.success("User details loaded");
+      toast.success("User details loaded");
 
-  } catch (error: any) {
-    console.error("Error fetching user details:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to fetch user details"
-    );
-  }
-};
-
-
+    } catch (error: any) {
+      console.error("Error fetching user details:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to fetch user details"
+      );
+    }
+  };
 
   const handleUserTypeChange = (value: string) => {
     setUserType(value);
@@ -262,6 +284,7 @@ const fetchUserDetails = async (userId: string) => {
     setAmount("");
     setRemarks("");
     setUserDetails(null);
+    setSearchQuery("");
     fetchUsers(value);
   };
 
@@ -342,6 +365,8 @@ const fetchUserDetails = async (userId: string) => {
     setRemarks("");
     setUserDetails(null);
     setUserOptions([]);
+    setFilteredUserOptions([]);
+    setSearchQuery("");
   };
 
   const formatAmount = (amount: number) => {
@@ -387,7 +412,7 @@ const fetchUserDetails = async (userId: string) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                 {/* User Type */}
                 <div className="space-y-2">
                   <Label htmlFor="userType" className="text-sm font-medium text-gray-700">
@@ -405,7 +430,7 @@ const fetchUserDetails = async (userId: string) => {
                   </Select>
                 </div>
 
-                {/* User Selection Dropdown */}
+                {/* User Selection Dropdown with Search */}
                 <div className="space-y-2">
                   <Label htmlFor="userSelect" className="text-sm font-medium text-gray-700">
                     Select {getUserTypeLabel(userType) || "User"} <span className="text-red-500">*</span>
@@ -426,17 +451,65 @@ const fetchUserDetails = async (userId: string) => {
                         }
                       />
                     </SelectTrigger>
-                    <SelectContent>
-                      {userOptions.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{user.name}</span>
-                            <span className="text-xs text-gray-500">
-                              {user.phone} • Balance: ₹{formatAmount(user.balance)}
-                            </span>
+                    <SelectContent className="max-w-md">
+                      {/* Search Bar Inside Dropdown */}
+                      <div className="sticky top-0 z-10 bg-white p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by ID, name, phone, business..."
+                            className="h-9 pl-9 pr-9 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSearchQuery("");
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {searchQuery && (
+                          <p className="text-xs text-gray-500 mt-1.5 px-1">
+                            Found {filteredUserOptions.length} result(s)
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* User List */}
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {filteredUserOptions.length > 0 ? (
+                          filteredUserOptions.map((user) => (
+                            <SelectItem key={user.id} value={user.id} className="cursor-pointer">
+                              <div className="flex flex-col py-1 gap-0.5 w-full">
+                                <span className="font-semibold text-sm truncate">{user.id}</span>
+                                <span className="text-xs text-gray-600 truncate">{user.name}</span>
+                                <span className="text-xs text-gray-500 truncate">
+                                  {user.phone} • ₹{formatAmount(user.balance)}
+                                </span>
+                                {user.Business && (
+                                  <span className="text-xs text-gray-500 truncate" title={user.Business}>
+                                    {user.Business}
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-sm text-gray-500">
+                            {searchQuery ? "No results found" : "No users available"}
                           </div>
-                        </SelectItem>
-                      ))}
+                        )}
+                      </div>
                     </SelectContent>
                   </Select>
                   {isLoadingUsers && (
@@ -637,6 +710,10 @@ const fetchUserDetails = async (userId: string) => {
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
               <span>All users of the selected type will be loaded at once</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-paybazaar-blue mt-1">•</span>
+              <span>Use the search bar inside the dropdown to quickly find users by ID, name, phone, or business name</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
