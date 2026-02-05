@@ -190,10 +190,10 @@ export function Dashboard() {
         const headers = getAuthHeaders().headers;
 
         // Fetch Master Distributors directly from admin endpoint
-        const mdResponse = await axios.get(
-          `${API_BASE_URL}/md/get/admin/${adminId}`,
-          { headers }
-        );
+       const mdResponse = await axios.get(
+  `${API_BASE_URL}/md/get/admin/${adminId}?limit=10000`,
+  { headers }
+);
 
         let masterDistributors: MasterDistributor[] = [];
         if (mdResponse.data.status === "success" && mdResponse.data.data) {
@@ -204,7 +204,7 @@ export function Dashboard() {
 
         // Fetch all Distributors directly from admin endpoint
         const distributorResponse = await axios.get(
-          `${API_BASE_URL}/distributor/get/admin/${adminId}`,
+          `${API_BASE_URL}/distributor/get/admin/${adminId}?limit=10000`,
           { headers }
         );
 
@@ -217,7 +217,7 @@ export function Dashboard() {
 
         // Fetch Retailers directly from admin endpoint
         const retailerResponse = await axios.get(
-          `${API_BASE_URL}/retailer/get/admin/${adminId}`,
+          `${API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000`,
           { headers }
         );
 
