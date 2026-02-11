@@ -436,7 +436,6 @@ const handleExportReport = async () => {
     csv += "Metric,Value\n";
     csv += `Admin Wallet Balance,${csvNumber(walletBalance)}\n`;
     csv += `Total Network Balance,${csvNumber(totalBalance)}\n`;
-    csv += `RechargeKit Balance (Settlement),${csvNumber(settlementBalance)}\n`;
     csv += `RechargeKit Balance (Recharge),${csvNumber(rechargeKitBalance)}\n`;
     csv += `Total Users,${totalUsers}\n`;
     csv += `Master Distributors,${totalMDs}\n`;
@@ -532,14 +531,14 @@ const handleExportReport = async () => {
     //   color: 'text-primary',
     //   onClick: () => navigate('/admin/logs')
     // },
-    {
-      title: 'RechargeKit Balance \n(Settlement)',
-      value: formatCurrency(settlementBalance),
-      icon: ShoppingCart,
-      description: 'Primary wallet balance',
-      color: 'text-accent',
-      onClick: () => {}
-    },
+    // {
+    //   title: 'RechargeKit Balance \n(Settlement)',
+    //   value: formatCurrency(settlementBalance),
+    //   icon: ShoppingCart,
+    //   description: 'Primary wallet balance',
+    //   color: 'text-accent',
+    //   onClick: () => {}
+    // },
      {
       title: 'RechargeKit Balance \n(Recharge)',
       value: formatCurrency(rechargeKitBalance),
@@ -607,7 +606,7 @@ const handleExportReport = async () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -790,7 +789,7 @@ const handleExportReport = async () => {
             <Button 
               variant="outline" 
               className="w-full" 
-              onClick={() => navigate('/admin/fund-requests')}
+              onClick={() => navigate('/admin/funds/request')}
             >
               View All Requests
             </Button>
