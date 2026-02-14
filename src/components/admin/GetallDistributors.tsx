@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, Building, Ban, CheckCircle, Download, CreditCard, Wallet } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, MapPin, Building, Ban, CheckCircle, Download, CreditCard, Wallet, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -100,7 +100,9 @@ function getAuthToken(): string | null {
 
 export default function GetAllDistributor() {
   const [masterDistributors, setMasterDistributors] = useState<MasterDistributor[]>([]);
+  const [filteredMasterDistributors, setFilteredMasterDistributors] = useState<MasterDistributor[]>([]);
   const [selectedMD, setSelectedMD] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [loadingMDs, setLoadingMDs] = useState(true);
   const [loadingDistributors, setLoadingDistributors] = useState(false);
@@ -129,6 +131,26 @@ export default function GetAllDistributor() {
     kyc_status: false,
   });
   const itemsPerPage = 10;
+
+  // Filter master distributors based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredMasterDistributors(masterDistributors);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = masterDistributors.filter((md) => {
+      const matchesId = md.master_distributor_id.toLowerCase().includes(query);
+      const matchesName = md.master_distributor_name?.toLowerCase().includes(query);
+      const matchesEmail = md.master_distributor_email?.toLowerCase().includes(query);
+      const matchesPhone = md.master_distributor_phone?.includes(query);
+      
+      return matchesId || matchesName || matchesEmail || matchesPhone;
+    });
+
+    setFilteredMasterDistributors(filtered);
+  }, [searchQuery, masterDistributors]);
 
   // Fetch ALL Master Distributors on mount (no pagination for dropdown)
   useEffect(() => {
@@ -172,6 +194,7 @@ export default function GetAllDistributor() {
             master_distributor_phone: md.master_distributor_phone,
           }));
           setMasterDistributors(normalized);
+          setFilteredMasterDistributors(normalized);
           
           // Auto-select first MD if available
           if (normalized.length > 0) {
@@ -664,28 +687,92 @@ export default function GetAllDistributor() {
               <div className="flex-1 space-y-1">
                 <Select value={selectedMD} onValueChange={setSelectedMD}>
                   <SelectTrigger className="h-11 bg-white">
-                    <SelectValue placeholder="Select master distributor" />
+                    <SelectValue placeholder="Select master distributor">
+                      {selectedMD && masterDistributors.find(md => md.master_distributor_id === selectedMD)?.master_distributor_name}
+                    </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
-                    {masterDistributors.length === 0 ? (
-                      <div className="px-2 py-1.5 text-sm text-gray-600">
-                        No master distributors found
+                  <SelectContent className="max-w-md">
+                    {/* Search Bar Inside Dropdown */}
+                    <div className="sticky top-0 z-10 bg-white p-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search by name, ID, email, phone..."
+                          className="h-9 pl-9 pr-9 text-sm"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSearchQuery("");
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      masterDistributors.map((md) => (
-                        <SelectItem
-                          key={md.master_distributor_id}
-                          value={md.master_distributor_id}
-                        >
-                          {md.master_distributor_name || md.master_distributor_email || md.master_distributor_id}
-                        </SelectItem>
-                      ))
-                    )}
+                      {searchQuery && (
+                        <p className="text-xs text-gray-500 mt-1.5 px-1">
+                          Found {filteredMasterDistributors.length} result(s)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Master Distributor List */}
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {filteredMasterDistributors.length === 0 && !searchQuery ? (
+                        <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
+                          No master distributors found
+                        </div>
+                      ) : filteredMasterDistributors.length === 0 && searchQuery ? (
+                        <div className="p-4 text-sm text-gray-500 text-center">
+                          <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p className="font-medium">No results found</p>
+                          <p className="text-xs mt-1">Try a different search term</p>
+                        </div>
+                      ) : (
+                        filteredMasterDistributors.map((md) => (
+                          <SelectItem
+                            key={md.master_distributor_id}
+                            value={md.master_distributor_id}
+                            className="cursor-pointer hover:bg-gray-100"
+                          >
+                            <div className="flex flex-col py-1.5 w-full">
+                              <span className="font-semibold text-sm text-gray-900">
+                                {md.master_distributor_name || "Unnamed"}
+                              </span>
+                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                                <span className="font-mono">{md.master_distributor_id}</span>
+                                {md.master_distributor_email && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <span>{md.master_distributor_email}</span>
+                                  </>
+                                )}
+                                {md.master_distributor_phone && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <span>{md.master_distributor_phone}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </div>
                   </SelectContent>
                 </Select>
                 {masterDistributors.length > 0 && (
                   <p className="text-xs text-gray-500 pl-1">
-                    {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
+                    {filteredMasterDistributors.length} of {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} {searchQuery ? 'matching search' : 'available'}
                   </p>
                 )}
               </div>

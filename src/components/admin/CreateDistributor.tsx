@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
-import { Eye, EyeOff, Loader2, User, Mail, Phone, CreditCard, Building, MapPin, Calendar, Users } from "lucide-react";
+import { Eye, EyeOff, Loader2, User, Mail, Phone, CreditCard, Building, MapPin, Calendar, Users, Search, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const distributorSchema = z.object({
@@ -80,6 +80,8 @@ interface MasterDistributor {
   master_distributor_id: string;
   master_distributor_name: string;
   master_distributor_email: string;
+  master_distributor_phone?: string;
+  business_name?: string;
   [key: string]: any;
 }
 
@@ -107,8 +109,31 @@ const CreateDistributorPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [masterDistributors, setMasterDistributors] = useState<MasterDistributor[]>([]);
+  const [filteredMasterDistributors, setFilteredMasterDistributors] = useState<MasterDistributor[]>([]);
   const [selectedMasterDistributorId, setSelectedMasterDistributorId] = useState<string>("");
   const [loadingMasterDistributors, setLoadingMasterDistributors] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter master distributors based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredMasterDistributors(masterDistributors);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = masterDistributors.filter((md) => {
+      const matchesId = md.master_distributor_id.toLowerCase().includes(query);
+      const matchesName = md.master_distributor_name?.toLowerCase().includes(query);
+      const matchesEmail = md.master_distributor_email?.toLowerCase().includes(query);
+      const matchesPhone = md.master_distributor_phone?.includes(query);
+      const matchesBusiness = md.business_name?.toLowerCase().includes(query);
+      
+      return matchesId || matchesName || matchesEmail || matchesPhone || matchesBusiness;
+    });
+
+    setFilteredMasterDistributors(filtered);
+  }, [searchQuery, masterDistributors]);
 
   // Password strength helper
   const getPasswordStrength = (pwd: string): { label: "Weak" | "Medium" | "Strong"; score: 0 | 1 | 2 | 3 } => {
@@ -149,9 +174,9 @@ const CreateDistributorPage = () => {
         
         // Add query parameters to get all records (try different common parameter names)
         const params = new URLSearchParams({
-          limit: '1000',      // Very high limit
-          page_size: '1000',  // Alternative parameter name
-          per_page: '1000',   // Another alternative
+          limit: '10000',      // Very high limit
+          page_size: '10000',  // Alternative parameter name
+          per_page: '10000',   // Another alternative
           all: 'true'         // Some APIs use this flag
         });
         
@@ -179,6 +204,7 @@ const CreateDistributorPage = () => {
           distributors = distributors.filter((md: any) => md.master_distributor_id);
           
           setMasterDistributors(distributors);
+          setFilteredMasterDistributors(distributors);
           
           // Auto-select if only one MD exists
           if (distributors.length === 1) {
@@ -297,6 +323,7 @@ const onSubmit = async (data: DistributorFormData) => {
       reset();
       setPassword("");
       setSelectedMasterDistributorId("");
+      setSearchQuery("");
     } else {
       toast({
         title: "Creation Failed",
@@ -343,7 +370,9 @@ const onSubmit = async (data: DistributorFormData) => {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Master Distributor Assignment</h2>
-                  <p className="text-sm text-gray-600">Select the master distributor</p>
+                  <p className="text-sm text-gray-600">
+                    Select the master distributor {masterDistributors.length > 0 && `(${masterDistributors.length} available)`}
+                  </p>
                 </div>
               </div>
 
@@ -362,28 +391,95 @@ const onSubmit = async (data: DistributorFormData) => {
                     onValueChange={setSelectedMasterDistributorId}
                   >
                     <SelectTrigger className="h-11 bg-white">
-                      <SelectValue placeholder="Select a master distributor" />
+                      <SelectValue placeholder="Select a master distributor">
+                        {selectedMasterDistributorId && masterDistributors.find(md => md.master_distributor_id === selectedMasterDistributorId)?.master_distributor_name}
+                      </SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      {masterDistributors.length === 0 ? (
-                        <div className="px-2 py-1.5 text-sm text-gray-600">
-                          No master distributors found
-                        </div>
-                      ) : (
-                        masterDistributors.map((md, index) => {
-                          const displayName = md.master_distributor_name || md.master_distributor_email || md.master_distributor_id || `MD-${index + 1}`;
-                          
-                          return (
-                            <SelectItem
-                              key={`md-${md.master_distributor_id}-${index}`}
-                              value={md.master_distributor_id}
+                    <SelectContent className="max-w-md">
+                      {/* Search Bar Inside Dropdown */}
+                      <div className="sticky top-0 z-10 bg-white p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name, ID, email, phone..."
+                            className="h-9 pl-9 pr-9 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSearchQuery("");
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
-                              {displayName}
-                              {md.business_name && ` (${md.business_name})`}
-                            </SelectItem>
-                          );
-                        })
-                      )}
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {searchQuery && (
+                          <p className="text-xs text-gray-500 mt-1.5 px-1">
+                            Found {filteredMasterDistributors.length} result(s)
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Master Distributor List */}
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {filteredMasterDistributors.length === 0 && !searchQuery ? (
+                          <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
+                            No master distributors found
+                          </div>
+                        ) : filteredMasterDistributors.length === 0 && searchQuery ? (
+                          <div className="p-4 text-sm text-gray-500 text-center">
+                            <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                            <p className="font-medium">No results found</p>
+                            <p className="text-xs mt-1">Try a different search term</p>
+                          </div>
+                        ) : (
+                          filteredMasterDistributors.map((md, index) => {
+                            return (
+                              <SelectItem
+                                key={`md-${md.master_distributor_id}-${index}`}
+                                value={md.master_distributor_id}
+                                className="cursor-pointer hover:bg-gray-100"
+                              >
+                                <div className="flex flex-col py-1.5 w-full">
+                                  <span className="font-semibold text-sm text-gray-900">
+                                    {md.master_distributor_name || "Unnamed"}
+                                  </span>
+                                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span className="font-mono">{md.master_distributor_id}</span>
+                                    {md.master_distributor_email && (
+                                      <>
+                                        <span className="text-gray-400">•</span>
+                                        <span>{md.master_distributor_email}</span>
+                                      </>
+                                    )}
+                                    {md.master_distributor_phone && (
+                                      <>
+                                        <span className="text-gray-400">•</span>
+                                        <span>{md.master_distributor_phone}</span>
+                                      </>
+                                    )}
+                                    {md.business_name && (
+                                      <>
+                                        <span className="text-gray-400">•</span>
+                                        <span className="truncate max-w-[150px]">{md.business_name}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })
+                        )}
+                      </div>
                     </SelectContent>
                   </Select>
                 )}
@@ -394,7 +490,7 @@ const onSubmit = async (data: DistributorFormData) => {
                 )}
                 {!loadingMasterDistributors && masterDistributors.length > 0 && (
                   <p className="text-xs text-gray-500">
-                    {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
+                    {filteredMasterDistributors.length} of {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} {searchQuery ? 'matching search' : 'available'}
                   </p>
                 )}
               </div>
@@ -772,6 +868,7 @@ const onSubmit = async (data: DistributorFormData) => {
                 onClick={() => {
                   reset();
                   setPassword("");
+                  setSearchQuery("");
                 }}
                 className="flex-1 h-11"
                 disabled={isSubmitting}
