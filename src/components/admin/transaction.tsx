@@ -121,9 +121,9 @@ const AdminWalletTransactions = () => {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Filters
+  // Filters - using lowercase to match backend expectations
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
 
@@ -166,9 +166,9 @@ const AdminWalletTransactions = () => {
         offset: offset.toString(),
       });
 
-      // Add filters to params
-      if (typeFilter !== "ALL") {
-        params.append("type", typeFilter);
+      // Add filters to params - try uppercase for backend compatibility
+      if (typeFilter !== "all") {
+        params.append("type", typeFilter.toUpperCase());
       }
       if (searchTerm.trim()) {
         params.append("search", searchTerm.trim());
@@ -192,13 +192,23 @@ const AdminWalletTransactions = () => {
       const total = res.data?.data?.total_count || res.data?.data?.total || 0;
 
 
-      // Client-side date filtering for accuracy
+      // Client-side filtering for accuracy
       let filtered = raw;
       
+      // Apply date filtering
       if (startDate && endDate) {
-        filtered = raw.filter((tx) =>
+        filtered = filtered.filter((tx) =>
           isTransactionInDateRange(tx.created_at, startDate, endDate)
         );
+      }
+
+      // Apply type filtering (client-side backup in case backend doesn't filter)
+      if (typeFilter !== "all") {
+        filtered = filtered.filter((tx) => {
+          const isCredit = !!tx.credit_amount;
+          const txType = isCredit ? "credit" : "debit";
+          return txType === typeFilter.toLowerCase();
+        });
       }
 
       const mapped: WalletTransaction[] = filtered.map((tx) => {
@@ -255,7 +265,7 @@ const AdminWalletTransactions = () => {
 
   const clearAllFilters = () => {
     setSearchTerm("");
-    setTypeFilter("ALL");
+    setTypeFilter("all");
     setStartDate(today);
     setEndDate(today);
     setCurrentPage(1);
@@ -263,7 +273,7 @@ const AdminWalletTransactions = () => {
 
   const hasActiveFilters =
     searchTerm || 
-    typeFilter !== "ALL" || 
+    typeFilter !== "all" || 
     startDate !== today || 
     endDate !== today;
 
@@ -367,8 +377,8 @@ const AdminWalletTransactions = () => {
         offset: "0",
       });
 
-      if (typeFilter !== "ALL") {
-        params.append("type", typeFilter);
+      if (typeFilter !== "all") {
+        params.append("type", typeFilter.toUpperCase());
       }
       if (searchTerm.trim()) {
         params.append("search", searchTerm.trim());
@@ -388,12 +398,21 @@ const AdminWalletTransactions = () => {
         }
       );
       let raw: WalletTransactionRaw[] = res.data?.data?.transactions || [];
-      // Apply client-side date filtering if needed
+      
+      // Apply client-side filtering
       if (startDate && endDate) {
-        const beforeFilter = raw.length;
         raw = raw.filter((tx) =>
           isTransactionInDateRange(tx.created_at, startDate, endDate)
         );
+      }
+
+      // Apply type filtering (client-side backup)
+      if (typeFilter !== "all") {
+        raw = raw.filter((tx) => {
+          const isCredit = !!tx.credit_amount;
+          const txType = isCredit ? "credit" : "debit";
+          return txType === typeFilter.toLowerCase();
+        });
       }
 
       if (raw.length === 0) {
@@ -452,7 +471,7 @@ const AdminWalletTransactions = () => {
 
       // Create filename with filter info
       let filterSuffix = "";
-      if (typeFilter !== "ALL") filterSuffix += `_${typeFilter}`;
+      if (typeFilter !== "all") filterSuffix += `_${typeFilter.toUpperCase()}`;
       if (startDate && endDate && (startDate !== today || endDate !== today)) {
         filterSuffix += `_${startDate}_to_${endDate}`;
       }
@@ -572,9 +591,9 @@ const AdminWalletTransactions = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">All Types</SelectItem>
-                    <SelectItem value="CREDIT">Credit</SelectItem>
-                    <SelectItem value="DEBIT">Debit</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                    <SelectItem value="debit">Debit</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

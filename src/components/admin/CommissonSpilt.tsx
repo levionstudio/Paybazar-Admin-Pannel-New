@@ -7,7 +7,6 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
-  Lock,
   Loader2,
   ArrowRight,
   CheckCircle2,
@@ -16,6 +15,8 @@ import {
   Plus,
   Table as TableIcon,
   X,
+  IndianRupee,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,9 +95,9 @@ interface HierarchyLevel {
   userName: string;
 }
 
-const TOTAL_COMMISSION = 1.0;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const SERVICES = ["PAYOUT"];
+const REFERENCE_AMOUNT = 1000; // ₹1000 reference for calculations
 
 /* =====================
    AUTH
@@ -142,11 +143,19 @@ export default function CommissionSplit() {
   const [editingCommission, setEditingCommission] = useState<CommissionData | null>(null);
   const [selectedService, setSelectedService] = useState<string>("");
 
-  // Commission values
+  // Commission values - TOTAL FIRST
+  const [totalCommission, setTotalCommission] = useState<string>("");
   const [mdCommission, setMdCommission] = useState<string>("");
   const [distributorCommission, setDistributorCommission] = useState<string>("");
   const [retailerCommission, setRetailerCommission] = useState<string>("");
   const [adminCommission, setAdminCommission] = useState<number>(0);
+
+  // Rupee amounts for ₹1000 reference
+  const [totalRupees, setTotalRupees] = useState<number>(0);
+  const [mdRupees, setMdRupees] = useState<number>(0);
+  const [distributorRupees, setDistributorRupees] = useState<number>(0);
+  const [retailerRupees, setRetailerRupees] = useState<number>(0);
+  const [adminRupees, setAdminRupees] = useState<number>(0);
 
   // Current hierarchy level
   const [currentHierarchyLevel, setCurrentHierarchyLevel] = useState<HierarchyLevel | null>(null);
@@ -164,10 +173,6 @@ export default function CommissionSplit() {
   const [retailerSearch, setRetailerSearch] = useState("");
   const [validationError, setValidationError] = useState("");
 
-  // Locking states
-  const [isMDLocked, setIsMDLocked] = useState(false);
-  const [isDistributorLocked, setIsDistributorLocked] = useState(false);
-
   /* =====================
      INIT
      ===================== */
@@ -176,7 +181,7 @@ export default function CommissionSplit() {
   }, []);
 
   /* =====================
-     FETCH ALL MASTER DISTRIBUTORS (no pagination)
+     FETCH ALL MASTER DISTRIBUTORS
      ===================== */
   useEffect(() => {
     if (!adminId) return;
@@ -186,7 +191,6 @@ export default function CommissionSplit() {
       const token = getAuthToken();
       
       try {
-        // Add parameters to fetch ALL master distributors
         const params = new URLSearchParams({
           limit: '10000',
           page_size: '10000',
@@ -202,7 +206,6 @@ export default function CommissionSplit() {
         );
 
         const mdList = res.data.data.master_distributors || [];
-        
         setMasterDistributors(mdList);
       } catch (error) {
         console.error("Error fetching master distributors:", error);
@@ -216,7 +219,7 @@ export default function CommissionSplit() {
   }, [adminId]);
 
   /* =====================
-     FETCH ALL DISTRIBUTORS FOR SELECTED MD (no pagination)
+     FETCH ALL DISTRIBUTORS FOR SELECTED MD
      ===================== */
   const fetchAllDistributors = async (mdId: string) => {
     const token = getAuthToken();
@@ -225,7 +228,6 @@ export default function CommissionSplit() {
     setRetailers([]);
     
     try {
-      // Add parameters to fetch ALL distributors for this MD
       const params = new URLSearchParams({
         limit: '10000',
         page_size: '10000',
@@ -251,14 +253,13 @@ export default function CommissionSplit() {
   };
 
   /* =====================
-     FETCH ALL RETAILERS FOR SELECTED DISTRIBUTOR (no pagination)
+     FETCH ALL RETAILERS FOR SELECTED DISTRIBUTOR
      ===================== */
   const fetchAllRetailers = async (distId: string) => {
     const token = getAuthToken();
     setLoadingRetailers(true);
     
     try {
-      // Add parameters to fetch ALL retailers for this distributor
       const params = new URLSearchParams({
         limit: '10000',
         page_size: '10000',
@@ -287,11 +288,16 @@ export default function CommissionSplit() {
      FETCH ALL COMMISSIONS FOR USER
      ===================== */
   const fetchAllCommissions = async (userId: string) => {
+    console.log("========== FETCH COMMISSIONS START ==========");
+    console.log("👤 User ID:", userId);
+    
     const token = getAuthToken();
     setLoadingCommissions(true);
     setAllCommissions([]);
 
     try {
+      console.log("🌐 API URL:", `${API_BASE_URL}/commision/get/commision/${userId}`);
+      console.log("🔑 Token exists:", !!token);
 
       const res = await axios.get(
         `${API_BASE_URL}/commision/get/commision/${userId}`,
@@ -299,13 +305,15 @@ export default function CommissionSplit() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      const commissionsData = res.data.data?.commisions || [];
-
       
-      if (commissionsData.length > 0) {
-   
-      }
-
+      console.log("✅ FETCH SUCCESS - Response:");
+      console.log("Response status:", res.status);
+      console.log("Response data:", JSON.stringify(res.data, null, 2));
+      
+      const commissionsData = res.data.data?.commisions || [];
+      console.log("📊 Commissions count:", commissionsData.length);
+      console.log("📋 Commissions data:", commissionsData);
+      
       setAllCommissions(commissionsData);
 
       if (commissionsData.length > 0) {
@@ -313,24 +321,32 @@ export default function CommissionSplit() {
       } else {
         toast.info("No commissions found. Create new commissions for services.");
       }
+      
+      console.log("========== FETCH COMMISSIONS SUCCESS ==========");
     } catch (error: any) {
-      console.error("❌ Fetch Commissions Error:");
-      console.error("Error Response:", error.response?.data);
-      console.error("Error Status:", error.response?.status);
+      console.error("========== ❌ FETCH COMMISSIONS ERROR ==========");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      console.error("Error response:", error.response);
+      console.error("Response status:", error.response?.status);
+      console.error("Response data:", error.response?.data);
       
       if (error.response?.status === 404) {
+        console.log("ℹ️ 404 - No commissions found (expected for new users)");
         toast.info("No commissions found. Create new commissions for services.");
         setAllCommissions([]);
       } else {
+        console.error("🚨 Unexpected error fetching commissions");
         toast.error("Failed to fetch commissions");
       }
     } finally {
       setLoadingCommissions(false);
+      console.log("========== FETCH COMMISSIONS END ==========");
     }
   };
 
   /* =====================
-     FILTER MASTER DISTRIBUTORS
+     FILTER FUNCTIONS
      ===================== */
   const filteredMasterDistributors = masterDistributors.filter((md) => {
     if (!masterDistributorSearch) return true;
@@ -342,9 +358,6 @@ export default function CommissionSplit() {
     );
   });
 
-  /* =====================
-     FILTER DISTRIBUTORS
-     ===================== */
   const filteredDistributors = distributors.filter((dist) => {
     if (!distributorSearch) return true;
     const search = distributorSearch.toLowerCase();
@@ -355,9 +368,6 @@ export default function CommissionSplit() {
     );
   });
 
-  /* =====================
-     FILTER RETAILERS
-     ===================== */
   const filteredRetailers = retailers.filter((ret) => {
     if (!retailerSearch) return true;
     const search = retailerSearch.toLowerCase();
@@ -382,10 +392,6 @@ export default function CommissionSplit() {
     setEditingCommission(null);
     setSelectedService("");
 
-    // Reset locks
-    setIsMDLocked(false);
-    setIsDistributorLocked(false);
-
     const mdData = masterDistributors.find((md) => md.master_distributor_id === mdId);
     const mdName = mdData?.master_distributor_name || mdData?.master_distributor_email || "";
 
@@ -395,10 +401,7 @@ export default function CommissionSplit() {
       userName: mdName,
     });
 
-    // Fetch all commissions for this MD
     await fetchAllCommissions(mdId);
-
-    // Fetch ALL distributors under this MD
     await fetchAllDistributors(mdId);
   };
 
@@ -414,10 +417,6 @@ export default function CommissionSplit() {
     setEditingCommission(null);
     setSelectedService("");
 
-    // Lock MD commission when distributor is selected
-    setIsMDLocked(true);
-    setIsDistributorLocked(false);
-
     const distData = distributors.find((dist) => dist.distributor_id === distId);
     const distName = distData?.distributor_name || distData?.distributor_email || "";
 
@@ -427,10 +426,7 @@ export default function CommissionSplit() {
       userName: distName,
     });
 
-    // Fetch all commissions for this distributor
     await fetchAllCommissions(distId);
-
-    // Fetch ALL retailers under this distributor
     await fetchAllRetailers(distId);
   };
 
@@ -444,10 +440,6 @@ export default function CommissionSplit() {
     setEditingCommission(null);
     setSelectedService("");
 
-    // Lock both MD and Distributor commissions when retailer is selected
-    setIsMDLocked(true);
-    setIsDistributorLocked(true);
-
     const retData = retailers.find((ret) => ret.retailer_id === retId);
     const retName = retData?.retailer_name || retData?.retailer_email || "";
 
@@ -457,7 +449,6 @@ export default function CommissionSplit() {
       userName: retName,
     });
 
-    // Fetch all commissions for this retailer
     await fetchAllCommissions(retId);
   };
 
@@ -465,50 +456,57 @@ export default function CommissionSplit() {
      HANDLE CREATE NEW COMMISSION
      ===================== */
   const handleCreateNewCommission = () => {
+    console.log("========== CREATE NEW COMMISSION ==========");
+    console.log("Current hierarchy level:", currentHierarchyLevel);
+    console.log("Selected service:", selectedService);
+    console.log("Existing commissions:", allCommissions);
+    
     if (!currentHierarchyLevel) {
+      console.error("❌ No hierarchy level selected");
       toast.error("Please select a user first");
       return;
     }
 
-    // Check if service is already selected
     if (!selectedService) {
+      console.error("❌ No service selected");
       toast.error("Please select a service");
       return;
     }
 
-    // Check if commission already exists for this service
     const existingForService = allCommissions.find(
       (c) => c.service === selectedService
     );
 
     if (existingForService) {
+      console.error("❌ Commission already exists for service:", selectedService);
       toast.error(`Commission for ${selectedService} already exists. Use Edit instead.`);
       return;
     }
 
+    console.log("✅ Creating new commission for service:", selectedService);
     setIsEditMode(true);
     setEditingCommission(null);
 
-    // Set default values
+    // Set default values - these are percentages of the total commission
+    setTotalCommission("1.20");
     setMdCommission("0.40");
     setDistributorCommission("0.30");
     setRetailerCommission("0.20");
+    console.log("✅ Default values set - Total: 1.20, MD: 0.40, Dist: 0.30, Ret: 0.20");
   };
 
   /* =====================
      HANDLE EDIT COMMISSION
      ===================== */
   const handleEditCommission = (commission: CommissionData) => {
-
     setIsEditMode(true);
     setEditingCommission(commission);
     setSelectedService(commission.service);
-    const mdComm = commission.master_distributor_commision.toFixed(2);
-    const distComm = commission.distributor_commision.toFixed(2);
-    const retComm = commission.retailer_commision.toFixed(2);
-    setMdCommission(mdComm);
-    setDistributorCommission(distComm);
-    setRetailerCommission(retComm);
+    
+    setTotalCommission(commission.total_commision.toFixed(2));
+    setMdCommission(commission.master_distributor_commision.toFixed(2));
+    setDistributorCommission(commission.distributor_commision.toFixed(2));
+    setRetailerCommission(commission.retailer_commision.toFixed(2));
   };
 
   /* =====================
@@ -518,6 +516,7 @@ export default function CommissionSplit() {
     setIsEditMode(false);
     setEditingCommission(null);
     setSelectedService("");
+    setTotalCommission("");
     setMdCommission("");
     setDistributorCommission("");
     setRetailerCommission("");
@@ -528,18 +527,21 @@ export default function CommissionSplit() {
      HANDLE COMMISSION CHANGE
      ===================== */
   const handleCommissionChange = (
-    type: "md" | "distributor" | "retailer",
+    type: "total" | "md" | "distributor" | "retailer",
     value: string
   ) => {
     // Allow only numbers and single decimal point
     if (value && !/^\d*\.?\d{0,2}$/.test(value)) return;
 
     switch (type) {
+      case "total":
+        setTotalCommission(value);
+        break;
       case "md":
-        if (!isMDLocked) setMdCommission(value);
+        setMdCommission(value);
         break;
       case "distributor":
-        if (!isDistributorLocked) setDistributorCommission(value);
+        setDistributorCommission(value);
         break;
       case "retailer":
         setRetailerCommission(value);
@@ -548,49 +550,80 @@ export default function CommissionSplit() {
   };
 
   /* =====================
-     CALCULATE ADMIN COMMISSION
+     CALCULATE ADMIN COMMISSION & RUPEE AMOUNTS
      ===================== */
   useEffect(() => {
+    const total = Number(totalCommission || 0);
     const md = Number(mdCommission || 0);
     const dist = Number(distributorCommission || 0);
     const ret = Number(retailerCommission || 0);
-    const total = md + dist + ret;
-    const calculatedAdmin = Number((TOTAL_COMMISSION - total).toFixed(2));
+    
+    const sumOfParts = md + dist + ret;
+    const calculatedAdmin = Number((1.0 - sumOfParts).toFixed(2));
     setAdminCommission(calculatedAdmin);
 
+    // First calculate total commission amount in rupees for ₹1000 transaction
+    const totalCommissionAmount = Number(((total / 100) * REFERENCE_AMOUNT).toFixed(2));
+    setTotalRupees(totalCommissionAmount);
+
+    // Now calculate each party's share as percentage of the total commission amount
+    // MD gets md% of the total commission (where md is like 0.40 = 40%)
+    setMdRupees(Number(((md * 100 / 100) * totalCommissionAmount).toFixed(2)));
+    setDistributorRupees(Number(((dist * 100 / 100) * totalCommissionAmount).toFixed(2)));
+    setRetailerRupees(Number(((ret * 100 / 100) * totalCommissionAmount).toFixed(2)));
+    setAdminRupees(Number(((calculatedAdmin * 100 / 100) * totalCommissionAmount).toFixed(2)));
+
     // Validation
-    if (total > TOTAL_COMMISSION) {
-      setValidationError("Total commission cannot exceed 1.00%");
+    if (sumOfParts > 1.0) {
+      setValidationError("Sum of MD, Distributor & Retailer percentages cannot exceed 100%");
     } else if (calculatedAdmin < 0) {
       setValidationError("Admin commission cannot be negative");
-    } else if (md < 0 || dist < 0 || ret < 0) {
+    } else if (total < 0 || md < 0 || dist < 0 || ret < 0) {
       setValidationError("Commission values cannot be negative");
+    } else if (total > 100) {
+      setValidationError("Total commission cannot exceed 100%");
     } else {
       setValidationError("");
     }
-  }, [mdCommission, distributorCommission, retailerCommission]);
+  }, [totalCommission, mdCommission, distributorCommission, retailerCommission]);
 
   /* =====================
      HANDLE SAVE
      ===================== */
   const handleSave = () => {
-    // Final validation before opening confirm dialog
-    if (!mdCommission || !distributorCommission || !retailerCommission) {
+    console.log("========== HANDLE SAVE VALIDATION ==========");
+    console.log("📝 Form Values:");
+    console.log("  - Total Commission:", totalCommission);
+    console.log("  - MD Commission:", mdCommission);
+    console.log("  - Distributor Commission:", distributorCommission);
+    console.log("  - Retailer Commission:", retailerCommission);
+    console.log("  - Admin Commission (auto):", adminCommission);
+    console.log("  - Service:", selectedService);
+    console.log("  - Current Hierarchy:", currentHierarchyLevel);
+    console.log("  - Validation Error:", validationError);
+    
+    if (!totalCommission || !mdCommission || !distributorCommission || !retailerCommission) {
+      console.error("❌ Validation failed: Missing commission fields");
       toast.error("Please fill in all commission fields");
       return;
     }
     if (validationError) {
+      console.error("❌ Validation failed:", validationError);
       toast.error(validationError);
       return;
     }
     if (!currentHierarchyLevel) {
+      console.error("❌ Validation failed: No hierarchy level selected");
       toast.error("Please select a hierarchy level");
       return;
     }
     if (!selectedService) {
+      console.error("❌ Validation failed: No service selected");
       toast.error("Please select a service");
       return;
     }
+    
+    console.log("✅ All validations passed - Opening confirmation dialog");
     setConfirmDialogOpen(true);
   };
 
@@ -598,46 +631,98 @@ export default function CommissionSplit() {
      CONFIRM SAVE
      ===================== */
   const confirmSave = async () => {
+    console.log("========== CONFIRM SAVE START ==========");
     const token = getAuthToken();
     setSaving(true);
     setConfirmDialogOpen(false);
 
-    if (!currentHierarchyLevel) return;
+    if (!currentHierarchyLevel) {
+      console.error("❌ No hierarchy level selected");
+      return;
+    }
 
     const userId = currentHierarchyLevel.userId;
+    console.log("📍 Current Hierarchy Level:", currentHierarchyLevel);
+    console.log("👤 User ID:", userId);
+    console.log("🔧 Service:", selectedService);
+    console.log("📝 Editing Commission:", editingCommission);
 
     try {
       if (!editingCommission) {
         // CREATE new commission
+        console.log("🆕 CREATE MODE");
+        
         const createPayload = {
           user_id: userId,
           service: selectedService,
-          total_commision: TOTAL_COMMISSION,
+          total_commision: Number(totalCommission),
           admin_commision: adminCommission,
           master_distributor_commision: Number(mdCommission),
           distributor_commision: Number(distributorCommission),
           retailer_commision: Number(retailerCommission),
         };
 
+        console.log("📤 CREATE PAYLOAD:");
+        console.log(JSON.stringify(createPayload, null, 2));
+        console.log("📊 Payload Details:");
+        console.log("  - Total Commission:", Number(totalCommission), typeof Number(totalCommission));
+        console.log("  - Admin Commission:", adminCommission, typeof adminCommission);
+        console.log("  - MD Commission:", Number(mdCommission), typeof Number(mdCommission));
+        console.log("  - Distributor Commission:", Number(distributorCommission), typeof Number(distributorCommission));
+        console.log("  - Retailer Commission:", Number(retailerCommission), typeof Number(retailerCommission));
+        console.log("🌐 API URL:", `${API_BASE_URL}/commision/create`);
+        console.log("🔑 Token exists:", !!token);
+        console.log("🔑 Token preview:", token?.substring(0, 20) + "...");
+
+        console.log("🚀 Sending POST request...");
         const createResponse = await axios.post(
           `${API_BASE_URL}/commision/create`,
           createPayload,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
           }
-        );
+        ).catch((error) => {
+          console.error("🔴 AXIOS CATCH - Raw error:", error);
+          console.error("🔴 AXIOS CATCH - Error response:", error.response);
+          console.error("🔴 AXIOS CATCH - Response data:", error.response?.data);
+          console.error("🔴 AXIOS CATCH - Response status:", error.response?.status);
+          console.error("🔴 AXIOS CATCH - Response headers:", error.response?.headers);
+          throw error;
+        });
+        
+        console.log("✅ CREATE SUCCESS - Response:");
+        console.log("Response status:", createResponse.status);
+        console.log("Response data:", JSON.stringify(createResponse.data, null, 2));
         toast.success(`Commission for ${selectedService} created successfully`);
       } else {
         // UPDATE existing commission
+        console.log("✏️ UPDATE MODE");
+        
         const updatePayload = {
           commision_id: editingCommission.commision_id,
-          total_commision: TOTAL_COMMISSION,
+          total_commision: Number(totalCommission),
           admin_commision: adminCommission,
           master_distributor_commision: Number(mdCommission),
           distributor_commision: Number(distributorCommission),
           retailer_commision: Number(retailerCommission),
         };
 
+        console.log("📤 UPDATE PAYLOAD:");
+        console.log(JSON.stringify(updatePayload, null, 2));
+        console.log("📊 Payload Details:");
+        console.log("  - Commission ID:", editingCommission.commision_id);
+        console.log("  - Total Commission:", Number(totalCommission), typeof Number(totalCommission));
+        console.log("  - Admin Commission:", adminCommission, typeof adminCommission);
+        console.log("  - MD Commission:", Number(mdCommission), typeof Number(mdCommission));
+        console.log("  - Distributor Commission:", Number(distributorCommission), typeof Number(distributorCommission));
+        console.log("  - Retailer Commission:", Number(retailerCommission), typeof Number(retailerCommission));
+        console.log("🌐 API URL:", `${API_BASE_URL}/commision/update/commision`);
+        console.log("🔑 Token exists:", !!token);
+
+        console.log("🚀 Sending PUT request...");
         const updateResponse = await axios.put(
           `${API_BASE_URL}/commision/update/commision`,
           updatePayload,
@@ -647,23 +732,52 @@ export default function CommissionSplit() {
               "Content-Type": "application/json",
             },
           }
-        );
+        ).catch((error) => {
+          console.error("🔴 AXIOS CATCH - Raw error:", error);
+          console.error("🔴 AXIOS CATCH - Error response:", error.response);
+          console.error("🔴 AXIOS CATCH - Response data:", error.response?.data);
+          console.error("🔴 AXIOS CATCH - Response status:", error.response?.status);
+          throw error;
+        });
+        
+        console.log("✅ UPDATE SUCCESS - Response:");
+        console.log("Response status:", updateResponse.status);
+        console.log("Response data:", JSON.stringify(updateResponse.data, null, 2));
         toast.success(`Commission for ${selectedService} updated successfully`);
       }
 
-      // Refresh the commission data
+      console.log("🔄 Fetching updated commissions...");
       await fetchAllCommissions(userId);
+      console.log("🧹 Cleaning up edit mode...");
       handleCancelEdit();
+      console.log("========== CONFIRM SAVE COMPLETE ==========");
     } catch (err: any) {
-      console.error("❌ Commission Save Error:");
-      console.error("Error Response:", err.response?.data);
-      console.error("Error Status:", err.response?.status);
-      console.error("Error Message:", err.message);
+      console.error("========== ❌ SAVE ERROR (OUTER CATCH) ==========");
+      console.error("Error object:", err);
+      console.error("Error name:", err.name);
+      console.error("Error message:", err.message);
+      console.error("Error stack:", err.stack);
+      console.error("Error response:", err.response);
+      console.error("Response status:", err.response?.status);
+      console.error("Response statusText:", err.response?.statusText);
+      console.error("Response data:", err.response?.data);
+      console.error("Response headers:", err.response?.headers);
+      console.error("Request config:", err.config);
+      console.error("Request data:", err.config?.data);
+      console.error("Request headers:", err.config?.headers);
       
-      const errorMessage = err.response?.data?.message || err.message || "Operation failed";
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || "Operation failed";
+      console.error("🚨 Error message to user:", errorMessage);
+      
+      // Show detailed error in console
+      if (err.response?.data) {
+        console.error("📋 Full error response data:", JSON.stringify(err.response.data, null, 2));
+      }
+      
       toast.error(errorMessage);
     } finally {
       setSaving(false);
+      console.log("========== CONFIRM SAVE END ==========");
     }
   };
 
@@ -672,11 +786,12 @@ export default function CommissionSplit() {
      ===================== */
   const handleReset = () => {
     if (editingCommission) {
+      setTotalCommission(editingCommission.total_commision.toFixed(2));
       setMdCommission(editingCommission.master_distributor_commision.toFixed(2));
       setDistributorCommission(editingCommission.distributor_commision.toFixed(2));
       setRetailerCommission(editingCommission.retailer_commision.toFixed(2));
     } else {
-      // Reset to defaults
+      setTotalCommission("1.20");
       setMdCommission("0.40");
       setDistributorCommission("0.30");
       setRetailerCommission("0.20");
@@ -712,7 +827,7 @@ export default function CommissionSplit() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Commission Configuration</h1>
               <p className="text-gray-600 mt-1">
-                Configure commission splits for your hierarchy
+                Configure commission splits for your hierarchy (All levels editable)
               </p>
             </div>
           </div>
@@ -738,30 +853,21 @@ export default function CommissionSplit() {
 
               {/* Master Distributor Dropdown */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Master Distributor <span className="text-red-500">*</span>
-                  </Label>
-                  {isMDLocked && <Lock className="w-4 h-4 text-amber-500" />}
-                </div>
+                <Label className="text-sm font-medium text-gray-700">
+                  Master Distributor <span className="text-red-500">*</span>
+                </Label>
 
                 <Select
                   value={selectedMD}
                   onValueChange={handleMDSelect}
-                  disabled={loadingMDs || isMDLocked}
+                  disabled={loadingMDs}
                 >
-                  <SelectTrigger
-                    className={cn(
-                      "h-12 bg-white",
-                      isMDLocked ? "bg-gray-100 cursor-not-allowed" : ""
-                    )}
-                  >
+                  <SelectTrigger className="h-12 bg-white">
                     <SelectValue placeholder="Select Master Distributor">
                       {selectedMD && masterDistributors.find(md => md.master_distributor_id === selectedMD)?.master_distributor_name}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-w-md">
-                    {/* Search Bar Inside Dropdown */}
                     <div className="sticky top-0 z-10 bg-white p-2 border-b">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -794,17 +900,11 @@ export default function CommissionSplit() {
                       )}
                     </div>
 
-                    {/* Master Distributor List */}
                     <div className="max-h-[300px] overflow-y-auto">
-                      {filteredMasterDistributors.length === 0 && !masterDistributorSearch ? (
-                        <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
-                          No master distributors found
-                        </div>
-                      ) : filteredMasterDistributors.length === 0 && masterDistributorSearch ? (
+                      {filteredMasterDistributors.length === 0 ? (
                         <div className="p-4 text-sm text-gray-500 text-center">
                           <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                           <p className="font-medium">No results found</p>
-                          <p className="text-xs mt-1">Try a different search term</p>
                         </div>
                       ) : (
                         filteredMasterDistributors.map((md) => (
@@ -831,7 +931,7 @@ export default function CommissionSplit() {
                 </Select>
                 {masterDistributors.length > 0 && (
                   <p className="text-sm text-gray-600">
-                    {filteredMasterDistributors.length} of {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} {masterDistributorSearch ? 'matching search' : 'available'}
+                    {filteredMasterDistributors.length} of {masterDistributors.length} master distributor{masterDistributors.length !== 1 ? 's' : ''} available
                   </p>
                 )}
               </div>
@@ -839,14 +939,9 @@ export default function CommissionSplit() {
               {/* Distributor Dropdown */}
               {selectedMD && (
                 <div className="space-y-2 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium text-gray-700">
-                      Distributor (Optional)
-                    </Label>
-                    {isDistributorLocked && (
-                      <Lock className="w-4 h-4 text-amber-500" />
-                    )}
-                  </div>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Distributor (Optional)
+                  </Label>
                   {loadingDistributors ? (
                     <div className="flex items-center gap-2 h-12 px-3 border rounded-md bg-white">
                       <Loader2 className="animate-spin h-4 w-4 text-gray-400" />
@@ -857,20 +952,13 @@ export default function CommissionSplit() {
                       <Select
                         value={selectedDistributor}
                         onValueChange={handleDistributorSelect}
-                        disabled={isDistributorLocked}
                       >
-                        <SelectTrigger
-                          className={cn(
-                            "h-12 bg-white",
-                            isDistributorLocked ? "bg-gray-100 cursor-not-allowed" : ""
-                          )}
-                        >
+                        <SelectTrigger className="h-12 bg-white">
                           <SelectValue placeholder="Select Distributor">
                             {selectedDistributor && distributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="max-w-md">
-                          {/* Search Bar Inside Dropdown */}
                           <div className="sticky top-0 z-10 bg-white p-2 border-b">
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -896,24 +984,12 @@ export default function CommissionSplit() {
                                 </button>
                               )}
                             </div>
-                            {distributorSearch && (
-                              <p className="text-xs text-gray-500 mt-1.5 px-1">
-                                Found {filteredDistributors.length} result(s)
-                              </p>
-                            )}
                           </div>
 
-                          {/* Distributor List */}
                           <div className="max-h-[300px] overflow-y-auto">
-                            {filteredDistributors.length === 0 && !distributorSearch ? (
-                              <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
-                                No distributors found
-                              </div>
-                            ) : filteredDistributors.length === 0 && distributorSearch ? (
+                            {filteredDistributors.length === 0 ? (
                               <div className="p-4 text-sm text-gray-500 text-center">
-                                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                                <p className="font-medium">No results found</p>
-                                <p className="text-xs mt-1">Try a different search term</p>
+                                No distributors found
                               </div>
                             ) : (
                               filteredDistributors.map((dist) => (
@@ -940,7 +1016,7 @@ export default function CommissionSplit() {
                       </Select>
                       {distributors.length > 0 && (
                         <p className="text-sm text-gray-600">
-                          {filteredDistributors.length} of {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} {distributorSearch ? 'matching search' : 'available'}
+                          {filteredDistributors.length} of {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} available
                         </p>
                       )}
                     </>
@@ -948,7 +1024,7 @@ export default function CommissionSplit() {
                 </div>
               )}
 
-              {/* Retailer Search & Dropdown */}
+              {/* Retailer Dropdown */}
               {selectedDistributor && (
                 <div className="space-y-2 pt-4 border-t">
                   <Label className="text-sm font-medium text-gray-700">
@@ -972,7 +1048,6 @@ export default function CommissionSplit() {
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="max-w-md">
-                          {/* Search Bar Inside Dropdown */}
                           <div className="sticky top-0 z-10 bg-white p-2 border-b">
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -998,24 +1073,12 @@ export default function CommissionSplit() {
                                 </button>
                               )}
                             </div>
-                            {retailerSearch && (
-                              <p className="text-xs text-gray-500 mt-1.5 px-1">
-                                Found {filteredRetailers.length} result(s)
-                              </p>
-                            )}
                           </div>
 
-                          {/* Retailer List */}
                           <div className="max-h-[300px] overflow-y-auto">
-                            {filteredRetailers.length === 0 && !retailerSearch ? (
-                              <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
-                                No retailers found
-                              </div>
-                            ) : filteredRetailers.length === 0 && retailerSearch ? (
+                            {filteredRetailers.length === 0 ? (
                               <div className="p-4 text-sm text-gray-500 text-center">
-                                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                                <p className="font-medium">No results found</p>
-                                <p className="text-xs mt-1">Try a different search term</p>
+                                No retailers found
                               </div>
                             ) : (
                               filteredRetailers.map((ret) => (
@@ -1042,7 +1105,7 @@ export default function CommissionSplit() {
                       </Select>
                       {retailers.length > 0 && (
                         <p className="text-sm text-gray-600">
-                          {filteredRetailers.length} of {retailers.length} retailer{retailers.length !== 1 ? 's' : ''} {retailerSearch ? 'matching search' : 'available'}
+                          {filteredRetailers.length} of {retailers.length} retailer{retailers.length !== 1 ? 's' : ''} available
                         </p>
                       )}
                     </>
@@ -1053,7 +1116,7 @@ export default function CommissionSplit() {
           </CardContent>
         </Card>
 
-        {/* Commission Table - Show when user is selected */}
+        {/* Commission Table */}
         {currentHierarchyLevel && !isEditMode && (
           <Card className="max-w-7xl mx-auto shadow-md">
             <CardContent className="p-0">
@@ -1087,144 +1150,142 @@ export default function CommissionSplit() {
                     Refresh
                   </Button>
                 </div>
-              {loadingCommissions ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                  <p className="text-gray-600">
-                    Loading commissions...
-                  </p>
-                </div>
-              ) : allCommissions.length > 0 ? (
-                <div className="rounded-lg border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="font-semibold text-gray-900">ID</TableHead>
-                        <TableHead className="font-semibold text-gray-900">Service</TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          MD Commission
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          Distributor
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          Retailer
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          Admin
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          Total
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900">
-                          Last Updated
-                        </TableHead>
-                        <TableHead className="font-semibold text-gray-900 text-center">
-                          Actions
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allCommissions.map((commission) => (
-                        <TableRow key={commission.commision_id}>
-                          <TableCell className="font-mono text-xs text-gray-600">
-                            #{commission.commision_id}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                              {commission.service}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center font-mono">
-                            {commission.master_distributor_commision.toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-center font-mono">
-                            {commission.distributor_commision.toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-center font-mono">
-                            {commission.retailer_commision.toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-center font-mono">
-                            {commission.admin_commision.toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-center font-bold">
-                            {commission.total_commision.toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {formatDate(commission.updated_at)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button
-                              onClick={() => handleEditCommission(commission)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="p-4 bg-gray-100 rounded-full">
-                    <TableIcon className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <p className="text-gray-600 font-medium">
-                    No commissions found
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Create commissions for different services
-                  </p>
-                </div>
-              )}
 
-              {/* Create New Button */}
-              <div className="mt-6 flex items-center gap-4 pt-6 border-t">
-                <div className="flex-1">
-                  <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Select Service to Create Commission
-                  </Label>
-                  <Select
-                    value={selectedService}
-                    onValueChange={setSelectedService}
+                {loadingCommissions ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <p className="text-gray-600">Loading commissions...</p>
+                  </div>
+                ) : allCommissions.length > 0 ? (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="font-semibold text-gray-900">Service</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Total %</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Total ₹</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">MD % Share</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">MD ₹</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Dist % Share</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Dist ₹</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Ret % Share</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Ret ₹</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Admin % Share</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Admin ₹</TableHead>
+                          <TableHead className="font-semibold text-gray-900">Updated</TableHead>
+                          <TableHead className="font-semibold text-gray-900 text-center">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allCommissions.map((commission) => {
+                          const totalCommAmt = (commission.total_commision / 100) * REFERENCE_AMOUNT;
+                          return (
+                          <TableRow key={commission.commision_id}>
+                            <TableCell className="font-semibold">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                                {commission.service}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-blue-600">
+                              {commission.total_commision.toFixed(2)}%
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-green-600">
+                              ₹{totalCommAmt.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center font-mono">
+                              {(commission.master_distributor_commision * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-green-600">
+                              ₹{((commission.master_distributor_commision * 100 / 100) * totalCommAmt).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center font-mono">
+                              {(commission.distributor_commision * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-green-600">
+                              ₹{((commission.distributor_commision * 100 / 100) * totalCommAmt).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center font-mono">
+                              {(commission.retailer_commision * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-green-600">
+                              ₹{((commission.retailer_commision * 100 / 100) * totalCommAmt).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center font-mono">
+                              {(commission.admin_commision * 100).toFixed(2)}%
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-green-600">
+                              ₹{((commission.admin_commision * 100 / 100) * totalCommAmt).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {formatDate(commission.updated_at)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                onClick={() => handleEditCommission(commission)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <div className="p-4 bg-gray-100 rounded-full">
+                      <TableIcon className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 font-medium">No commissions found</p>
+                    <p className="text-sm text-gray-600">Create commissions for different services</p>
+                  </div>
+                )}
+
+                {/* Create New Button */}
+                <div className="mt-6 flex items-center gap-4 pt-6 border-t">
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Select Service to Create Commission
+                    </Label>
+                    <Select
+                      value={selectedService}
+                      onValueChange={setSelectedService}
+                    >
+                      <SelectTrigger className="h-12 bg-white">
+                        <SelectValue placeholder="Select Service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SERVICES.map((service) => {
+                          const exists = allCommissions.some((c) => c.service === service);
+                          return (
+                            <SelectItem
+                              key={service}
+                              value={service}
+                              disabled={exists}
+                            >
+                              {service} {exists && "(Already Exists)"}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleCreateNewCommission}
+                    disabled={!selectedService}
+                    className="h-12 bg-blue-600 hover:bg-blue-700 mt-6"
                   >
-                    <SelectTrigger className="h-12 bg-white">
-                      <SelectValue placeholder="Select Service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SERVICES.map((service) => {
-                        const exists = allCommissions.some(
-                          (c) => c.service === service
-                        );
-                        return (
-                          <SelectItem
-                            key={service}
-                            value={service}
-                            disabled={exists}
-                          >
-                            {service} {exists && "(Already Exists)"}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create New Commission
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleCreateNewCommission}
-                  disabled={!selectedService}
-                  className="h-12 bg-blue-600 hover:bg-blue-700 mt-6"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Create New Commission
-                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         )}
 
         {/* Edit/Create Commission Form */}
@@ -1250,159 +1311,205 @@ export default function CommissionSplit() {
                   {editingCommission ? (
                     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-700">
-                        Editing Existing
-                      </span>
+                      <span className="text-sm font-medium text-blue-700">Editing Existing</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
                       <Info className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-700">
-                        Creating New
-                      </span>
+                      <span className="text-sm font-medium text-green-700">Creating New</span>
                     </div>
                   )}
                 </div>
 
-              {/* Commission Inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Master Distributor */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium text-gray-700">
-                      Master Distributor Commission (%) <span className="text-red-500">*</span>
+                {/* Reference Info */}
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <IndianRupee className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      Commission Reference: ₹{REFERENCE_AMOUNT} Transaction
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Step 1: Total commission (e.g., 1.2%) of ₹{REFERENCE_AMOUNT} = ₹12
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Step 2: Each party gets their % share of that ₹12 (MD 40% = ₹4.80, Dist 30% = ₹3.60, etc.)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Commission Inputs */}
+                <div className="space-y-6">
+                  {/* TOTAL COMMISSION - FIRST */}
+                  <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-3">
+                    <Label className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
+                      Total Commission (%) <span className="text-red-500">*</span>
                     </Label>
-                    {isMDLocked && <Lock className="w-4 h-4 text-amber-500" />}
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={totalCommission}
+                          onChange={(e) => handleCommissionChange("total", e.target.value)}
+                          className="h-14 font-bold text-lg bg-white border-2 border-blue-400"
+                          placeholder="1.20"
+                        />
+                        <p className="text-xs text-blue-700 mt-1">Enter total commission percentage</p>
+                      </div>
+                      <div className="flex-1">
+                        <div className="h-14 px-4 bg-white border-2 border-blue-400 rounded-lg flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">For ₹{REFERENCE_AMOUNT}:</span>
+                          <span className="font-bold text-xl text-green-600">₹{totalRupees.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <Input
-                    type="text"
-                    value={mdCommission}
-                    onChange={(e) =>
-                      handleCommissionChange("md", e.target.value)
-                    }
-                    disabled={isMDLocked}
-                    className={cn(
-                      "h-12 font-semibold bg-white",
-                      isMDLocked
-                        ? "bg-gray-100 cursor-not-allowed"
-                        : ""
-                    )}
-                    placeholder="0.00"
-                  />
-                </div>
 
-                {/* Distributor */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium text-gray-700">
-                      Distributor Commission (%) <span className="text-red-500">*</span>
+                  {/* GRID FOR MD, DISTRIBUTOR, RETAILER */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Master Distributor */}
+                    <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Master Distributor (% of Total Commission) <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={mdCommission}
+                        onChange={(e) => handleCommissionChange("md", e.target.value)}
+                        className="h-12 font-semibold bg-white"
+                        placeholder="0.40"
+                      />
+                      <div className="flex items-center justify-between px-3 py-2 bg-white border rounded">
+                        <span className="text-xs text-gray-600">Amount:</span>
+                        <span className="font-bold text-green-600">₹{mdRupees.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Share of ₹{totalRupees.toFixed(2)} commission</p>
+                    </div>
+
+                    {/* Distributor */}
+                    <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Distributor (% of Total Commission) <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={distributorCommission}
+                        onChange={(e) => handleCommissionChange("distributor", e.target.value)}
+                        className="h-12 font-semibold bg-white"
+                        placeholder="0.30"
+                      />
+                      <div className="flex items-center justify-between px-3 py-2 bg-white border rounded">
+                        <span className="text-xs text-gray-600">Amount:</span>
+                        <span className="font-bold text-green-600">₹{distributorRupees.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Share of ₹{totalRupees.toFixed(2)} commission</p>
+                    </div>
+
+                    {/* Retailer */}
+                    <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Retailer (% of Total Commission) <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={retailerCommission}
+                        onChange={(e) => handleCommissionChange("retailer", e.target.value)}
+                        className="h-12 font-semibold bg-white"
+                        placeholder="0.20"
+                      />
+                      <div className="flex items-center justify-between px-3 py-2 bg-white border rounded">
+                        <span className="text-xs text-gray-600">Amount:</span>
+                        <span className="font-bold text-green-600">₹{retailerRupees.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Share of ₹{totalRupees.toFixed(2)} commission</p>
+                    </div>
+                  </div>
+
+                  {/* ADMIN COMMISSION - AUTO CALCULATED */}
+                  <div className="p-4 bg-gray-100 border-2 border-gray-300 rounded-lg">
+                    <Label className="text-sm font-bold text-gray-700 mb-3 block">
+                      Admin Commission (Auto-Calculated)
                     </Label>
-                    {isDistributorLocked && (
-                      <Lock className="w-4 h-4 text-amber-500" />
-                    )}
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <div className="h-14 px-4 bg-white border-2 border-gray-400 rounded-lg flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">Percentage:</span>
+                          <span className="font-bold text-xl text-gray-700">{(adminCommission * 100).toFixed(2)}%</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="h-14 px-4 bg-white border-2 border-gray-400 rounded-lg flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">For ₹{REFERENCE_AMOUNT}:</span>
+                          <span className="font-bold text-xl text-green-600">₹{adminRupees.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Formula: 1.00 - (MD + Distributor + Retailer) = 1.00 - ({mdCommission || 0} + {distributorCommission || 0} + {retailerCommission || 0}) = {adminCommission.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Admin gets {(adminCommission * 100).toFixed(2)}% of ₹{totalRupees.toFixed(2)} = ₹{adminRupees.toFixed(2)}
+                    </p>
                   </div>
-                  <Input
-                    type="text"
-                    value={distributorCommission}
-                    onChange={(e) =>
-                      handleCommissionChange("distributor", e.target.value)
-                    }
-                    disabled={isDistributorLocked}
-                    className={cn(
-                      "h-12 font-semibold bg-white",
-                      isDistributorLocked
-                        ? "bg-gray-100 cursor-not-allowed"
-                        : ""
-                    )}
-                    placeholder="0.00"
-                  />
                 </div>
 
-                {/* Retailer */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Retailer Commission (%) <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="text"
-                    value={retailerCommission}
-                    onChange={(e) =>
-                      handleCommissionChange("retailer", e.target.value)
-                    }
-                    className="h-12 font-semibold bg-white"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                {/* Admin */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Admin Commission (Auto)
-                  </Label>
-                  <div className="h-12 px-4 bg-gray-100 border rounded-lg flex items-center">
-                    <span className="font-bold text-gray-700">
-                      {adminCommission.toFixed(2)}%
-                    </span>
+                {validationError && (
+                  <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <p className="text-red-700 font-medium">{validationError}</p>
                   </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-4 pt-6 border-t">
+                  <Button
+                    onClick={handleCancelEdit}
+                    variant="outline"
+                    className="flex-1 h-12"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleReset}
+                    variant="outline"
+                    className="flex-1 h-12"
+                  >
+                    <RefreshCw className="w-5 h-5 mr-2" />
+                    Reset
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={
+                      saving ||
+                      !!validationError ||
+                      !totalCommission ||
+                      !mdCommission ||
+                      !distributorCommission ||
+                      !retailerCommission
+                    }
+                    className="flex-1 h-12 bg-blue-600 hover:bg-blue-700"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        {editingCommission ? "Update" : "Create"} Commission
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-
-              {validationError && (
-                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                  <p className="text-red-700 font-medium">{validationError}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-4 pt-6 border-t">
-                <Button
-                  onClick={handleCancelEdit}
-                  variant="outline"
-                  className="flex-1 h-12"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="flex-1 h-12"
-                >
-                  <RefreshCw className="w-5 h-5 mr-2" />
-                  Reset
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={
-                    saving ||
-                    !!validationError ||
-                    !mdCommission ||
-                    !distributorCommission ||
-                    !retailerCommission
-                  }
-                  className="flex-1 h-12 paybazaar-button"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      {editingCommission ? "Update" : "Create"} Commission
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         )}
 
         {/* Confirmation Dialog */}
         <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">
                 {editingCommission ? "Update" : "Create"} Commission for {selectedService}
@@ -1414,31 +1521,43 @@ export default function CommissionSplit() {
             </DialogHeader>
 
             <div className="space-y-3 py-4">
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-gray-700">
-                  Master Distributor:
-                </span>
-                <span className="font-bold text-blue-600">
-                  {parseFloat(mdCommission || "0").toFixed(2)}%
-                </span>
+              <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
+                <span className="font-bold text-gray-900">Total Commission:</span>
+                <div className="text-right">
+                  <span className="font-bold text-xl text-blue-600">{parseFloat(totalCommission || "0").toFixed(2)}%</span>
+                  <span className="block text-sm text-green-600 font-semibold">₹{totalRupees.toFixed(2)}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-gray-700">Distributor:</span>
-                <span className="font-bold text-blue-600">
-                  {parseFloat(distributorCommission || "0").toFixed(2)}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="font-medium text-gray-700">Retailer:</span>
-                <span className="font-bold text-blue-600">
-                  {parseFloat(retailerCommission || "0").toFixed(2)}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-gray-100 rounded-lg border border-gray-300">
-                <span className="font-medium text-gray-700">Admin (Auto):</span>
-                <span className="font-bold text-gray-700">
-                  {adminCommission.toFixed(2)}%
-                </span>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="font-medium text-gray-700">MD:</span>
+                  <div className="text-right">
+                    <span className="font-bold text-blue-600">{(parseFloat(mdCommission || "0") * 100).toFixed(2)}%</span>
+                    <span className="block text-xs text-green-600">₹{mdRupees.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="font-medium text-gray-700">Distributor:</span>
+                  <div className="text-right">
+                    <span className="font-bold text-blue-600">{(parseFloat(distributorCommission || "0") * 100).toFixed(2)}%</span>
+                    <span className="block text-xs text-green-600">₹{distributorRupees.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="font-medium text-gray-700">Retailer:</span>
+                  <div className="text-right">
+                    <span className="font-bold text-blue-600">{(parseFloat(retailerCommission || "0") * 100).toFixed(2)}%</span>
+                    <span className="block text-xs text-green-600">₹{retailerRupees.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-100 rounded-lg border border-gray-300">
+                  <span className="font-medium text-gray-700">Admin:</span>
+                  <div className="text-right">
+                    <span className="font-bold text-gray-700">{(adminCommission * 100).toFixed(2)}%</span>
+                    <span className="block text-xs text-green-600">₹{adminRupees.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1453,7 +1572,7 @@ export default function CommissionSplit() {
               <Button
                 onClick={confirmSave}
                 disabled={saving}
-                className="h-12 paybazaar-button"
+                className="h-12 bg-blue-600 hover:bg-blue-700"
               >
                 {saving ? (
                   <>
