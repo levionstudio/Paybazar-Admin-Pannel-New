@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Eye, EyeOff, Loader2, User, Mail, Phone, CreditCard, Building, MapPin, Calendar, UserCog } from "lucide-react"
+import { Eye, EyeOff, Loader2, User, Mail, Phone, CreditCard, Building, MapPin, Calendar, UserCog, Search, X } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 const retailerSchema = z.object({
@@ -96,8 +96,31 @@ const CreateRetailerPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState("")
   const [distributors, setDistributors] = useState<Distributor[]>([])
+  const [filteredDistributors, setFilteredDistributors] = useState<Distributor[]>([])
   const [loadingDistributors, setLoadingDistributors] = useState(false)
   const [selectedDistributorId, setSelectedDistributorId] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState("")
+
+  // Filter distributors based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredDistributors(distributors);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = distributors.filter((dist) => {
+      const matchesId = dist.distributor_id.toLowerCase().includes(query);
+      const matchesName = dist.distributor_name?.toLowerCase().includes(query);
+      const matchesEmail = dist.distributor_email?.toLowerCase().includes(query);
+      const matchesPhone = dist.distributor_phone?.includes(query);
+      const matchesBusiness = dist.business_name?.toLowerCase().includes(query);
+      
+      return matchesId || matchesName || matchesEmail || matchesPhone || matchesBusiness;
+    });
+
+    setFilteredDistributors(filtered);
+  }, [searchQuery, distributors]);
 
   // Password strength helper
   const getPasswordStrength = (pwd: string): { label: "Weak" | "Medium" | "Strong"; score: 0 | 1 | 2 | 3 } => {
@@ -179,6 +202,7 @@ const CreateRetailerPage = () => {
           distributorList = distributorList.filter((d: any) => d.distributor_id);
           
           setDistributors(distributorList);
+          setFilteredDistributors(distributorList);
           
           // Auto-select if only one distributor exists
           if (distributorList.length === 1) {
@@ -301,6 +325,7 @@ const CreateRetailerPage = () => {
         reset();
         setPassword("");
         setSelectedDistributorId("");
+        setSearchQuery("");
       } else {
         console.error("❌ Unexpected response status:", res.data);
         toast({
@@ -387,35 +412,99 @@ const CreateRetailerPage = () => {
                     }}
                   >
                     <SelectTrigger className="h-11 bg-white">
-                      <SelectValue placeholder="Select a distributor" />
+                      <SelectValue 
+                        placeholder="Select a distributor" 
+                      >
+                        {selectedDistributorId && distributors.find(d => d.distributor_id === selectedDistributorId)?.distributor_name}
+                      </SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      {distributors.length === 0 ? (
-                        <div className="px-2 py-1.5 text-sm text-gray-600">
-                          No distributors found
-                        </div>
-                      ) : (
-                        distributors.map((d, index) => {
-                          const displayName = d.distributor_name || d.distributor_id || d.distributor_email || `Distributor-${index + 1}`;
-                          const businessInfo = d.business_name ? ` - ${d.business_name}` : '';
-                          const displayText = `${displayName}${businessInfo}`;
-                          
-                          return (
-                            <SelectItem
-                              key={`dist-${d.distributor_id}-${index}`}
-                              value={d.distributor_id}
+                    <SelectContent className="max-w-md">
+                      {/* Search Bar Inside Dropdown */}
+                      <div className="sticky top-0 z-10 bg-white p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by ID, name, email, phone..."
+                            className="h-9 pl-9 pr-9 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSearchQuery("");
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
-                              {displayText}
-                            </SelectItem>
-                          );
-                        })
-                      )}
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {searchQuery && (
+                          <p className="text-xs text-gray-500 mt-1.5 px-1">
+                            Found {filteredDistributors.length} result(s)
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Distributor List */}
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {filteredDistributors.length === 0 && !searchQuery ? (
+                          <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
+                            No distributors found
+                          </div>
+                        ) : filteredDistributors.length === 0 && searchQuery ? (
+                          <div className="p-4 text-sm text-gray-500 text-center">
+                            <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                            <p className="font-medium">No results found</p>
+                            <p className="text-xs mt-1">Try a different search term</p>
+                          </div>
+                        ) : (
+                          filteredDistributors.map((d, index) => {
+                            return (
+                              <SelectItem
+                                key={`dist-${d.distributor_id}-${index}`}
+                                value={d.distributor_id}
+                                className="cursor-pointer hover:bg-gray-100"
+                              >
+                                <div className="flex flex-col py-1.5 w-full">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className="font-semibold text-sm text-gray-900">
+                                      {d.distributor_name || "Unnamed Distributor"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span className="font-mono">{d.distributor_id}</span>
+                                 
+                                    {d.business_name && (
+                                      <>
+                                        <span className="text-gray-400">•</span>
+                                        <span className="truncate max-w-[150px]">{d.business_name}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })
+                        )}
+                      </div>
                     </SelectContent>
                   </Select>
                 )}
                 {errors.distributor_id && (
                   <p className="text-sm text-red-600">
                     {errors.distributor_id.message}
+                  </p>
+                )}
+                {!loadingDistributors && distributors.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} available
                   </p>
                 )}
                 {!selectedDistributorId && !loadingDistributors && distributors.length > 0 && (
@@ -797,6 +886,7 @@ const CreateRetailerPage = () => {
                 onClick={() => {
                   reset()
                   setPassword("")
+                  setSearchQuery("")
                 }}
                 className="flex-1 h-11"
                 disabled={isSubmitting}

@@ -166,7 +166,7 @@ export default function RefundRequest() {
           name: md.master_distributor_name,
           phone: md.master_distributor_phone,
           balance: Number(md.wallet_balance || 0),
-          Business: md.business_name,
+          Business: md.business_name || "N/A",
         }));
       }
 
@@ -176,7 +176,7 @@ export default function RefundRequest() {
           name: dist.distributor_name,
           phone: dist.distributor_phone,
           balance: Number(dist.wallet_balance || 0),
-          Business: dist.business_name,
+          Business: dist.business_name || "N/A",
         }));
       }
 
@@ -186,7 +186,7 @@ export default function RefundRequest() {
           name: ret.retailer_name,
           phone: ret.retailer_phone,
           balance: Number(ret.wallet_balance || 0),
-          Business: ret.business_name,
+          Business: ret.business_name || "N/A",
         }));
       }
 
@@ -256,7 +256,7 @@ export default function RefundRequest() {
           user.master_distributor_name ||
           user.distributor_name ||
           user.retailer_name,
-        Business: user.business_name,
+        Business: user.business_name || "N/A",
         phone:
           user.master_distributor_phone ||
           user.distributor_phone ||
@@ -447,6 +447,8 @@ export default function RefundRequest() {
                             ? `Loading all ${getUserTypeLabel(userType)}s...`
                             : userOptions.length === 0
                             ? "No users available"
+                            : selectedUserId 
+                            ? `${userOptions.find(u => u.id === selectedUserId)?.name || selectedUserId}`
                             : `Select from ${userOptions.length} users`
                         }
                       />
@@ -486,37 +488,60 @@ export default function RefundRequest() {
                       </div>
                       
                       {/* User List */}
-                   <div className="max-h-[300px] overflow-y-auto">
-  {filteredUserOptions?.length > 0 ? (
-    filteredUserOptions.map((user) => (
-      <SelectItem
-        key={user.id}
-        value={user.id}
-        className="cursor-pointer"
-      >
-        <div className="flex flex-col py-1 w-full">
-          <span className="font-semibold text-sm truncate">
-            {user.id}
-          </span>
-          <span className="text-xs truncate">
-            {user.name}
-          </span>
-        </div>
-      </SelectItem>
-    ))
-  ) : (
-    <div className="p-2 text-sm text-gray-500 text-center">
-      No users found
-    </div>
-  )}
-</div>
-
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {filteredUserOptions?.length > 0 ? (
+                          filteredUserOptions.map((user) => (
+                            <SelectItem
+                              key={user.id}
+                              value={user.id}
+                              className="cursor-pointer hover:bg-gray-100"
+                            >
+                              <div className="flex flex-col py-1.5 w-full">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="font-semibold text-sm text-gray-900">
+                                    {user.name}
+                                  </span>
+                                  <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                    ₹{formatAmount(user.balance)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <span className="font-mono">{user.id}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span>{user.phone}</span>
+                                  {user.Business && user.Business !== "N/A" && (
+                                    <>
+                                      <span className="text-gray-400">•</span>
+                                      <span className="truncate max-w-[150px]">{user.Business}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : searchQuery ? (
+                          <div className="p-4 text-sm text-gray-500 text-center">
+                            <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                            <p className="font-medium">No results found</p>
+                            <p className="text-xs mt-1">Try a different search term</p>
+                          </div>
+                        ) : (
+                          <div className="p-4 text-sm text-gray-500 text-center">
+                            No users available
+                          </div>
+                        )}
+                      </div>
                     </SelectContent>
                   </Select>
                   {isLoadingUsers && (
                     <p className="text-xs text-gray-500 flex items-center gap-1">
                       <Loader2 className="h-3 w-3 animate-spin" />
                       Fetching all {getUserTypeLabel(userType)}s...
+                    </p>
+                  )}
+                  {!isLoadingUsers && userOptions.length > 0 && (
+                    <p className="text-xs text-gray-500">
+                      {userOptions.length} {getUserTypeLabel(userType)}{userOptions.length !== 1 ? 's' : ''} available
                     </p>
                   )}
                 </div>
@@ -715,6 +740,10 @@ export default function RefundRequest() {
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
               <span>Use the search bar inside the dropdown to quickly find users by ID, name, phone, or business name</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-paybazaar-blue mt-1">•</span>
+              <span>Each user entry shows their current wallet balance for reference</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-paybazaar-blue mt-1">•</span>
