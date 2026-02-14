@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle, Download } from "lucide-react";
+import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle, Download, Wallet, Building } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -71,6 +71,8 @@ interface EditFormData {
   retailer_password: string;
   retailer_name: string;
   retailer_phone: string;
+  pan_number: string;
+  aadhar_number: string;
   city: string;
   state: string;
   address: string;
@@ -78,6 +80,7 @@ interface EditFormData {
   business_name: string;
   business_type: string;
   gst_number: string;
+  wallet_balance: number;
   is_blocked: boolean;
   kyc_status: boolean;
 }
@@ -116,6 +119,8 @@ export default function GetAllRetailers() {
     retailer_password: "",
     retailer_name: "",
     retailer_phone: "",
+    pan_number: "",
+    aadhar_number: "",
     city: "",
     state: "",
     address: "",
@@ -123,6 +128,7 @@ export default function GetAllRetailers() {
     business_name: "",
     business_type: "",
     gst_number: "",
+    wallet_balance: 0,
     is_blocked: false,
     kyc_status: false,
   });
@@ -320,6 +326,8 @@ export default function GetAllRetailers() {
         retailer_password: retData.retailer_password ?? "",
         retailer_name: retData.retailer_name ?? "",
         retailer_phone: retData.retailer_phone ?? "",
+        pan_number: retData.pan_number ?? "",
+        aadhar_number: retData.aadhar_number ?? "",
         city: retData.city ?? "",
         state: retData.state ?? "",
         address: retData.address ?? "",
@@ -327,6 +335,7 @@ export default function GetAllRetailers() {
         business_name: retData.business_name ?? "",
         business_type: retData.business_type ?? "",
         gst_number: retData.gst_number ?? "",
+        wallet_balance: Number(retData.wallet_balance ?? 0),
         is_blocked: Boolean(retData.is_blocked),
         kyc_status: Boolean(retData.kyc_status),
       });
@@ -356,6 +365,28 @@ export default function GetAllRetailers() {
       return;
     }
 
+    // Validate PAN number format (if changed)
+    if (editFormData.pan_number && editFormData.pan_number !== selectedRetailer.pan_number) {
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.pan_number)) {
+        toast.error("Invalid PAN number format. Should be like: ABCDE1234F");
+        return;
+      }
+    }
+
+    // Validate Aadhar number format (if changed)
+    if (editFormData.aadhar_number && editFormData.aadhar_number !== selectedRetailer.aadhar_number) {
+      if (!/^\d{12}$/.test(editFormData.aadhar_number)) {
+        toast.error("Invalid Aadhar number. Should be 12 digits");
+        return;
+      }
+    }
+
+    // Validate wallet balance
+    if (editFormData.wallet_balance < 0) {
+      toast.error("Wallet balance cannot be negative");
+      return;
+    }
+
     const token = getAuthToken();
     if (!token) return;
 
@@ -376,6 +407,9 @@ export default function GetAllRetailers() {
       "business_name",
       "business_type",
       "gst_number",
+      "pan_number",
+      "aadhar_number",
+      "wallet_balance",
     ];
 
     allowedKeys.forEach((key) => {
@@ -755,7 +789,7 @@ export default function GetAllRetailers() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-20 text-gray-600">
+                        <TableCell colSpan={12} className="text-center py-20 text-gray-600">
                           No retailers found for the selected distributor
                         </TableCell>
                       </TableRow>
@@ -852,14 +886,6 @@ export default function GetAllRetailers() {
                     <Label className="text-sm font-medium text-muted-foreground">Retailer ID</Label>
                     <p className="font-mono text-sm font-semibold">{selectedRetailer.retailer_id}</p>
                   </div>
-                  {/* <div className="space-y-1"> 
-                    <Label className="text-sm font-medium text-muted-foreground"> 
-                      Retailer Password
-                    </Label>
-                    <p className="font-mono text-sm font-semibold">
-                      {selectedRetailer.retailer_password || "N/A"}
-                    </p>
-                  </div> */}
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">Email</Label>
                     <p className="text-sm">{selectedRetailer.retailer_email}</p>
@@ -869,34 +895,12 @@ export default function GetAllRetailers() {
                     <p className="text-sm">{formatDate(selectedRetailer.created_at)}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Aadhar Number</Label>
-                    <p className="font-mono text-sm">{selectedRetailer.aadhar_number}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">PAN Number</Label>
-                    <p className="font-mono text-sm uppercase">{selectedRetailer.pan_number}</p>
-                  </div>
-                  <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
                     <p className="text-sm">{formatDate(selectedRetailer.date_of_birth)}</p>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
                     <p className="text-sm">{selectedRetailer.gender}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Wallet Balance</Label>
-                    <p className="font-semibold text-sm text-green-600">
-                      ₹{selectedRetailer.wallet_balance?.toLocaleString("en-IN") || "0"}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">KYC Status</Label>
-                    {getKYCBadge(selectedRetailer.kyc_status)}
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>
-                    {getStatusBadge(selectedRetailer.is_blocked)}
                   </div>
                 </div>
 
@@ -926,23 +930,6 @@ export default function GetAllRetailers() {
                         placeholder="Enter name"
                       />
                     </div>
-                    {/* <div className="space-y-2">
-                      <Label htmlFor="edit-password">
-                        Retailer Password <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-password"
-                        type="password"
-                        value={editFormData.retailer_password}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            retailer_password: e.target.value,
-                          })
-                        }
-                        placeholder="Enter password"
-                      />    
-                      </div> */}
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-phone">
@@ -966,11 +953,76 @@ export default function GetAllRetailers() {
                   </div>
                 </div>
 
+                {/* KYC Documents Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                      <CreditCard className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        KYC Documents
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Update identity verification documents
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-aadhar">
+                        Aadhar Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-aadhar"
+                        type="tel"
+                        inputMode="numeric"
+                        value={editFormData.aadhar_number}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            aadhar_number: e.target.value.replace(/\D/g, ""),
+                          })
+                        }
+                        placeholder="Enter 12-digit Aadhar number"
+                        maxLength={12}
+                        className="font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Format: 123456789012
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-pan">
+                        PAN Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-pan"
+                        type="text"
+                        value={editFormData.pan_number}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            pan_number: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="Enter PAN number"
+                        maxLength={10}
+                        className="font-mono uppercase"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Format: ABCDE1234F
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Business Information Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 pb-3 border-b">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                      <CreditCard className="h-5 w-5 text-blue-600" />
+                      <Building className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-lg">Business Information</h3>
@@ -1106,6 +1158,45 @@ export default function GetAllRetailers() {
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Wallet Balance Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                      <Wallet className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Wallet Balance</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Set exact wallet balance (not added to existing)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-wallet-balance">
+                      Wallet Balance (₹) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="edit-wallet-balance"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editFormData.wallet_balance}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          wallet_balance: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="Enter wallet balance"
+                      className="font-mono text-lg"
+                    />
+                    <p className="text-xs text-yellow-600 font-medium">
+                      ⚠️ Note: This will set the balance to exactly this amount, not add to existing balance
+                    </p>
                   </div>
                 </div>
 

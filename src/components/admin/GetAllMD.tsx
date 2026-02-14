@@ -31,7 +31,7 @@ import {
 import { 
   Loader2, Edit, RefreshCw, User, Building, MapPin, 
   CheckCircle, Ban, Download, ChevronsLeft, ChevronLeft, 
-  ChevronRight, ChevronsRight, Search, Filter, X 
+  ChevronRight, ChevronsRight, Search, Filter, X, CreditCard, Wallet 
 } from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
@@ -71,6 +71,9 @@ interface EditFormData {
   master_distributor_name: string;
   master_distributor_phone: string;
   master_distributor_password: string;
+  master_distributor_email: string;
+  pan_number: string;
+  aadhar_number: string;
   city: string;
   state: string;
   address: string;
@@ -123,6 +126,9 @@ export default function GetAllMD() {
     master_distributor_name: "",
     master_distributor_phone: "",
     master_distributor_password: "",
+    master_distributor_email: "",
+    pan_number: "",
+    aadhar_number: "",
     city: "",
     state: "",
     address: "",
@@ -238,6 +244,9 @@ export default function GetAllMD() {
         master_distributor_name: mdData.master_distributor_name ?? "",
         master_distributor_phone: mdData.master_distributor_phone ?? "",
         master_distributor_password: mdData.master_distributor_password ?? "",
+        master_distributor_email: mdData.master_distributor_email ?? "",
+        pan_number: mdData.pan_number ?? "",
+        aadhar_number: mdData.aadhar_number ?? "",
         city: mdData.city ?? "",
         state: mdData.state ?? "",
         address: mdData.address ?? "",
@@ -276,6 +285,28 @@ export default function GetAllMD() {
       return;
     }
 
+    // Validate PAN number format (if changed)
+    if (editFormData.pan_number && editFormData.pan_number !== selectedMD.pan_number) {
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.pan_number)) {
+        toast.error("Invalid PAN number format. Should be like: ABCDE1234F");
+        return;
+      }
+    }
+
+    // Validate Aadhar number format (if changed)
+    if (editFormData.aadhar_number && editFormData.aadhar_number !== selectedMD.aadhar_number) {
+      if (!/^\d{12}$/.test(editFormData.aadhar_number)) {
+        toast.error("Invalid Aadhar number. Should be 12 digits");
+        return;
+      }
+    }
+
+    // Validate wallet balance
+    if (editFormData.wallet_balance < 0) {
+      toast.error("Wallet balance cannot be negative");
+      return;
+    }
+
     const token = localStorage.getItem("authToken");
     const url = `${import.meta.env.VITE_API_BASE_URL}/md/update/details`;
 
@@ -294,6 +325,9 @@ export default function GetAllMD() {
       "business_name",
       "business_type",
       "gst_number",
+      "pan_number",
+      "aadhar_number",
+      "wallet_balance",
     ];
 
     allowedKeys.forEach((key) => {
@@ -718,7 +752,7 @@ export default function GetAllMD() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={11}
                       className="text-center py-6 text-muted-foreground"
                     >
                       No master distributors found
@@ -850,14 +884,6 @@ export default function GetAllMD() {
                       {selectedMD.master_distributor_id}
                     </p>
                   </div>
-                  {/* <div className="space-y-1"> 
-                    <Label className="text-sm font-medium text-muted-foreground"> 
-                      MD Password
-                    </Label>
-                    <p className="font-mono text-sm font-semibold">
-                      {selectedMD.master_distributor_password || "N/A"}
-                    </p>
-                  </div> */}
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">
                       Email
@@ -869,20 +895,6 @@ export default function GetAllMD() {
                       Created At
                     </Label>
                     <p className="text-sm">{formatDate(selectedMD.created_at)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">
-                      Aadhar Number
-                    </Label>
-                    <p className="font-mono text-sm">{selectedMD.aadhar_number}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">
-                      PAN Number
-                    </Label>
-                    <p className="font-mono text-sm uppercase">
-                      {selectedMD.pan_number}
-                    </p>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm font-medium text-muted-foreground">
@@ -931,23 +943,6 @@ export default function GetAllMD() {
                         placeholder="Enter name"
                       />
                     </div>
-                    {/* <div className="space-y-2">
-                      <Label htmlFor="edit-password">
-                        MD Password <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-password"
-                        type="password"
-                        value={editFormData.master_distributor_password}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            master_distributor_password: e.target.value,
-                          })
-                        }
-                        placeholder="Enter password"
-                      />
-                    </div> */}
 
                     <div className="space-y-2">
                       <Label htmlFor="edit-phone">
@@ -967,6 +962,71 @@ export default function GetAllMD() {
                         placeholder="Enter 10-digit phone number"
                         maxLength={10}
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* KYC Documents Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                      <CreditCard className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        KYC Documents
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Update identity verification documents
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-aadhar">
+                        Aadhar Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-aadhar"
+                        type="tel"
+                        inputMode="numeric"
+                        value={editFormData.aadhar_number}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            aadhar_number: e.target.value.replace(/\D/g, ""),
+                          })
+                        }
+                        placeholder="Enter 12-digit Aadhar number"
+                        maxLength={12}
+                        className="font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Format: 123456789012
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-pan">
+                        PAN Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-pan"
+                        type="text"
+                        value={editFormData.pan_number}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            pan_number: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="Enter PAN number"
+                        maxLength={10}
+                        className="font-mono uppercase"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Format: ABCDE1234F
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1128,6 +1188,45 @@ export default function GetAllMD() {
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Wallet Balance Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                      <Wallet className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Wallet Balance</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Set exact wallet balance (not added to existing)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-wallet-balance">
+                      Wallet Balance (₹) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="edit-wallet-balance"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editFormData.wallet_balance}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          wallet_balance: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="Enter wallet balance"
+                      className="font-mono text-lg"
+                    />
+                    <p className="text-xs text-yellow-600 font-medium">
+                      ⚠️ Note: This will set the balance to exactly this amount, not add to existing balance
+                    </p>
                   </div>
                 </div>
 

@@ -495,7 +495,7 @@ const PostpaidRechargeTransactionPage = () => {
 
     setRefunding(true);
     try {
-      const url = `${import.meta.env.VITE_API_BASE_URL}/bbps/recharge/refund/${transactionId}`;
+      const url = `${import.meta.env.VITE_API_BASE_URL}/bbps/postpaid/recharge/transaction/refund/${transactionId}`;
       const response = await axios.put(url, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });

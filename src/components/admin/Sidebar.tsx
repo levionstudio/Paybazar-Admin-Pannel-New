@@ -47,7 +47,7 @@ const transactionLogsSubMenu = [
   { name: "Dth Transaction", href: "/admin/logs/dth", icon: FileText },
   { name: "Postpaid Recharge Transaction", href: "/admin/logs/postpaidrecharge", icon: Smartphone },
   { name: "Electricity Bill Transaction", href: "/admin/logs/electricitybill", icon: Zap },
-  { name: "Revert History", href: "/admin/logs/revert/history", icon: History },
+  // { name: "Revert History", href: "/admin/logs/revert/history", icon: History },
 ];
 
 const navigations = [

@@ -486,30 +486,31 @@ export default function RefundRequest() {
                       </div>
                       
                       {/* User List */}
-                      <div className="max-h-[300px] overflow-y-auto">
-                        {filteredUserOptions.length > 0 ? (
-                          filteredUserOptions.map((user) => (
-                            <SelectItem key={user.id} value={user.id} className="cursor-pointer">
-                              <div className="flex flex-col py-1 gap-0.5 w-full">
-                                <span className="font-semibold text-sm truncate">{user.id}</span>
-                                <span className="text-xs text-gray-600 truncate">{user.name}</span>
-                                <span className="text-xs text-gray-500 truncate">
-                                  {user.phone} • ₹{formatAmount(user.balance)}
-                                </span>
-                                {user.Business && (
-                                  <span className="text-xs text-gray-500 truncate" title={user.Business}>
-                                    {user.Business}
-                                  </span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="p-4 text-center text-sm text-gray-500">
-                            {searchQuery ? "No results found" : "No users available"}
-                          </div>
-                        )}
-                      </div>
+                   <div className="max-h-[300px] overflow-y-auto">
+  {filteredUserOptions?.length > 0 ? (
+    filteredUserOptions.map((user) => (
+      <SelectItem
+        key={user.id}
+        value={user.id}
+        className="cursor-pointer"
+      >
+        <div className="flex flex-col py-1 w-full">
+          <span className="font-semibold text-sm truncate">
+            {user.id}
+          </span>
+          <span className="text-xs truncate">
+            {user.name}
+          </span>
+        </div>
+      </SelectItem>
+    ))
+  ) : (
+    <div className="p-2 text-sm text-gray-500 text-center">
+      No users found
+    </div>
+  )}
+</div>
+
                     </SelectContent>
                   </Select>
                   {isLoadingUsers && (

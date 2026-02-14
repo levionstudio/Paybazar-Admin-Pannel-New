@@ -188,13 +188,14 @@ const ElectricityBillTransactionPage = () => {
       });
 
       const list: ElectricityBillTransaction[] =
-        response.data?.data?.history ?? [];
+        response.data?.data?.transactions ?? [];
 
       const sorted = list.sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setAllTransactionsRaw(sorted);
+      console.log(sorted);
       toast.success(`Loaded ${sorted.length} transactions`);
     } catch (error: any) {
       console.error("Error fetching all transactions:", error);
@@ -222,7 +223,7 @@ const ElectricityBillTransactionPage = () => {
       });
 
       const list: ElectricityBillTransaction[] =
-        response.data?.data?.history || [];
+        response.data?.data?.transactions || [];
 
       const sorted = list.sort(
         (a, b) =>
@@ -492,7 +493,7 @@ const ElectricityBillTransactionPage = () => {
 
     setRefunding(true);
     try {
-      const url = `${import.meta.env.VITE_API_BASE_URL}/bbps/electricity/refund/${transactionId}`;
+      const url = `${import.meta.env.VITE_API_BASE_URL}/bbps/electricity/transaction/refund/${transactionId}`;
       const response = await axios.put(url, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
