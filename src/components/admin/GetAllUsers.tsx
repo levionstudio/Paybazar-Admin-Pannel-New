@@ -2,20 +2,27 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, RefreshCw, User, MapPin, CreditCard, Ban, CheckCircle, Download, Wallet, Building, Search, X } from "lucide-react";
+import {
+  Loader2,
+  Edit,
+  RefreshCw,
+  Download,
+  Search,
+  X,
+  Settings,
+} from "lucide-react";
 import { toast } from "sonner";
 import { jwtDecode } from "jwt-decode";
 import {
@@ -25,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import EditRetailerDialog from "./EditRetailerDialog";
+import LimitManagementDialog from "./LimitCreateService";
 
 interface Distributor {
   distributor_id: string;
@@ -66,25 +75,6 @@ interface DecodedToken {
   exp: number;
 }
 
-interface EditFormData {
-  retailer_id: string;
-  retailer_password: string;
-  retailer_name: string;
-  retailer_phone: string;
-  pan_number: string;
-  aadhar_number: string;
-  city: string;
-  state: string;
-  address: string;
-  pincode: string;
-  business_name: string;
-  business_type: string;
-  gst_number: string;
-  wallet_balance: number;
-  is_blocked: boolean;
-  kyc_status: boolean;
-}
-
 /* -------------------- AUTH HELPER -------------------- */
 function getAuthToken(): string | null {
   const token = localStorage.getItem("authToken");
@@ -104,7 +94,9 @@ function getAuthToken(): string | null {
 
 export default function GetAllRetailers() {
   const [distributors, setDistributors] = useState<Distributor[]>([]);
-  const [filteredDistributors, setFilteredDistributors] = useState<Distributor[]>([]);
+  const [filteredDistributors, setFilteredDistributors] = useState<
+    Distributor[]
+  >([]);
   const [selectedDistributor, setSelectedDistributor] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [retailers, setRetailers] = useState<Retailer[]>([]);
@@ -112,28 +104,13 @@ export default function GetAllRetailers() {
   const [loadingRetailers, setLoadingRetailers] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isFetchingProfile, setIsFetchingProfile] = useState(false);
-  const [editFormData, setEditFormData] = useState<EditFormData>({
-    retailer_id: "",
-    retailer_password: "",
-    retailer_name: "",
-    retailer_phone: "",
-    pan_number: "",
-    aadhar_number: "",
-    city: "",
-    state: "",
-    address: "",
-    pincode: "",
-    business_name: "",
-    business_type: "",
-    gst_number: "",
-    wallet_balance: 0,
-    is_blocked: false,
-    kyc_status: false,
-  });
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(
+    null
+  );
 
   const itemsPerPage = 10;
 
@@ -148,11 +125,19 @@ export default function GetAllRetailers() {
     const filtered = distributors.filter((dist) => {
       const matchesId = dist.distributor_id.toLowerCase().includes(query);
       const matchesName = dist.distributor_name?.toLowerCase().includes(query);
-      const matchesEmail = dist.distributor_email?.toLowerCase().includes(query);
+      const matchesEmail = dist.distributor_email
+        ?.toLowerCase()
+        .includes(query);
       const matchesPhone = dist.distributor_phone?.includes(query);
       const matchesBusiness = dist.business_name?.toLowerCase().includes(query);
-      
-      return matchesId || matchesName || matchesEmail || matchesPhone || matchesBusiness;
+
+      return (
+        matchesId ||
+        matchesName ||
+        matchesEmail ||
+        matchesPhone ||
+        matchesBusiness
+      );
     });
 
     setFilteredDistributors(filtered);
@@ -172,12 +157,11 @@ export default function GetAllRetailers() {
         const decoded = jwtDecode<DecodedToken>(token);
         const adminId = decoded.admin_id;
 
-        // Add parameters to fetch ALL distributors
         const params = new URLSearchParams({
-          limit: '10000',      // Very high limit to get all records
-          page_size: '10000',  // Alternative parameter name
-          per_page: '10000',   // Another alternative
-          all: 'true'          // Some APIs use this flag
+          limit: "10000",
+          page_size: "10000",
+          per_page: "10000",
+          all: "true",
         });
 
         const res = await axios.get(
@@ -192,7 +176,7 @@ export default function GetAllRetailers() {
 
         if (res.data?.status === "success" && res.data?.data) {
           const list = res.data.data.distributors || [];
-          
+
           const normalized = list.map((d: any) => ({
             distributor_id: d.distributor_id,
             distributor_name: d.distributor_name,
@@ -203,8 +187,7 @@ export default function GetAllRetailers() {
 
           setDistributors(normalized);
           setFilteredDistributors(normalized);
-          
-          // Auto-select first distributor if available
+
           if (normalized.length > 0) {
             setSelectedDistributor(normalized[0].distributor_id);
           }
@@ -213,7 +196,9 @@ export default function GetAllRetailers() {
         }
       } catch (error: any) {
         console.error("Error fetching distributors:", error);
-        toast.error(error.response?.data?.message || "Failed to load distributors");
+        toast.error(
+          error.response?.data?.message || "Failed to load distributors"
+        );
       } finally {
         setLoadingDistributors(false);
       }
@@ -222,7 +207,7 @@ export default function GetAllRetailers() {
     fetchAllDistributors();
   }, []);
 
-  // Fetch retailers with pagination (10 per page)
+  // Fetch retailers with pagination
   const fetchRetailers = async (distributorId: string, page: number = 1) => {
     if (!distributorId) {
       setRetailers([]);
@@ -234,9 +219,9 @@ export default function GetAllRetailers() {
     if (!token) return;
 
     setLoadingRetailers(true);
-    
+
     try {
-      const offset = (page - 1) * itemsPerPage;      
+      const offset = (page - 1) * itemsPerPage;
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -253,7 +238,8 @@ export default function GetAllRetailers() {
 
       if (res.data?.status === "success" && res.data?.data) {
         const list = res.data.data.retailers || [];
-        const count = res.data.data.total_count || res.data.data.count || list.length;        
+        const count =
+          res.data.data.total_count || res.data.data.count || list.length;
         setRetailers(list);
         setTotalCount(count);
       } else {
@@ -271,12 +257,14 @@ export default function GetAllRetailers() {
     }
   };
 
-  // Fetch all retailers for export (without pagination)
-  const fetchAllRetailersForExport = async (distributorId: string): Promise<Retailer[]> => {
+  // Fetch all retailers for export
+  const fetchAllRetailersForExport = async (
+    distributorId: string
+  ): Promise<Retailer[]> => {
     const token = getAuthToken();
     if (!token) return [];
 
-    try {      
+    try {
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
         {
@@ -285,7 +273,7 @@ export default function GetAllRetailers() {
             "Content-Type": "application/json",
           },
           params: {
-            limit: 100000, // Very large number to get all records
+            limit: 100000,
             offset: 0,
           },
         }
@@ -302,251 +290,33 @@ export default function GetAllRetailers() {
     }
   };
 
-  // Fetch retailers when distributor changes or page changes
   useEffect(() => {
     if (selectedDistributor) {
       fetchRetailers(selectedDistributor, currentPage);
     }
   }, [selectedDistributor, currentPage]);
 
-  // Reset to page 1 when distributor changes
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedDistributor]);
 
-  const handleEditClick = async (retailer: Retailer) => {
+  const handleEditClick = (retailer: Retailer) => {
+    setSelectedRetailer(retailer);
     setEditDialogOpen(true);
-    setIsFetchingProfile(true);
-
-    const token = getAuthToken();
-    if (!token) {
-      setIsFetchingProfile(false);
-      setEditDialogOpen(false);
-      return;
-    }
-
-    try {
-      const url = `${import.meta.env.VITE_API_BASE_URL}/retailer/get/retailer/${retailer.retailer_id}`;
-
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const retData = response.data?.data?.retailer || response.data?.data;
-
-      if (!retData) {
-        toast.error("Invalid profile data");
-        setEditDialogOpen(false);
-        return;
-      }
-
-      setSelectedRetailer(retData);
-
-      setEditFormData({
-        retailer_id: retData.retailer_id,
-        retailer_password: retData.retailer_password ?? "",
-        retailer_name: retData.retailer_name ?? "",
-        retailer_phone: retData.retailer_phone ?? "",
-        pan_number: retData.pan_number ?? "",
-        aadhar_number: retData.aadhar_number ?? "",
-        city: retData.city ?? "",
-        state: retData.state ?? "",
-        address: retData.address ?? "",
-        pincode: retData.pincode ?? "",
-        business_name: retData.business_name ?? "",
-        business_type: retData.business_type ?? "",
-        gst_number: retData.gst_number ?? "",
-        wallet_balance: Number(retData.wallet_balance ?? 0),
-        is_blocked: Boolean(retData.is_blocked),
-        kyc_status: Boolean(retData.kyc_status),
-      });
-
-      toast.success("Profile loaded successfully");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to load profile");
-      setEditDialogOpen(false);
-    } finally {
-      setIsFetchingProfile(false);
-    }
   };
 
-  const handleUpdateRetailer = async () => {
-    if (!selectedRetailer?.retailer_id) {
-      toast.error("Invalid retailer selected");
-      return;
-    }
+  const handleManageLimits = (retailer: Retailer) => {
+    setSelectedRetailer(retailer);
+    setLimitDialogOpen(true);
+  };
 
-    if (!editFormData.retailer_name.trim()) {
-      toast.error("Name is required");
-      return;
-    }
-
-    if (!/^[1-9]\d{9}$/.test(editFormData.retailer_phone)) {
-      toast.error("Invalid phone number");
-      return;
-    }
-
-    // Validate PAN number format (if changed)
-    if (editFormData.pan_number && editFormData.pan_number !== selectedRetailer.pan_number) {
-      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.pan_number)) {
-        toast.error("Invalid PAN number format. Should be like: ABCDE1234F");
-        return;
-      }
-    }
-
-    // Validate Aadhar number format (if changed)
-    if (editFormData.aadhar_number && editFormData.aadhar_number !== selectedRetailer.aadhar_number) {
-      if (!/^\d{12}$/.test(editFormData.aadhar_number)) {
-        toast.error("Invalid Aadhar number. Should be 12 digits");
-        return;
-      }
-    }
-
-    // Validate wallet balance
-    if (editFormData.wallet_balance < 0) {
-      toast.error("Wallet balance cannot be negative");
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) return;
-
-    const url = `${import.meta.env.VITE_API_BASE_URL}/retailer/update/details`;
-
-    const payload: any = {
-      retailer_id: selectedRetailer.retailer_id,
-    };
-
-    const allowedKeys = [
-      "retailer_name",
-      "retailer_password",
-      "retailer_phone",
-      "city",
-      "state",
-      "address",
-      "pincode",
-      "business_name",
-      "business_type",
-      "gst_number",
-      "pan_number",
-      "aadhar_number",
-      "wallet_balance",
-    ];
-
-    allowedKeys.forEach((key) => {
-      const formValue = (editFormData as any)[key];
-      const originalValue = (selectedRetailer as any)[key];
-      
-      if (formValue !== originalValue) {
-        payload[key] = formValue;
-      }
-    });
-
-    if (Object.keys(payload).length === 1) {
-      toast.info("No changes detected");
-      return;
-    }
-
-    try {
-      setIsUpdating(true);
-
-      const response = await axios.put(url, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      toast.success(response.data?.message || "Retailer updated successfully");
-
-      setEditDialogOpen(false);
-      setSelectedRetailer(null);
-      
+  const handleDialogSuccess = () => {
+    // Refresh the current page
+    if (selectedDistributor) {
       fetchRetailers(selectedDistributor, currentPage);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Update failed");
-    } finally {
-      setIsUpdating(false);
     }
   };
 
-  const handleUpdateRetailerBlockStatus = async (blockStatus: boolean) => {
-    if (!selectedRetailer?.retailer_id) {
-      toast.error("Invalid retailer selected");
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) return;
-
-    try {
-      await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/retailer/update/block`,
-        {
-          retailer_id: selectedRetailer.retailer_id,
-          block_status: blockStatus,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      toast.success("Retailer block status updated");
-
-      // Update UI instantly
-      setEditFormData((prev) => ({
-        ...prev,
-        is_blocked: blockStatus,
-      }));
-
-      fetchRetailers(selectedDistributor, currentPage);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update block status");
-    }
-  };
-
-  const handleUpdateRetailerKYCStatus = async (kycStatus: boolean) => {
-    if (!selectedRetailer?.retailer_id) {
-      toast.error("Invalid retailer selected");
-      return;
-    }
-
-    const token = getAuthToken();
-    if (!token) return;
-
-    try {
-      await axios.put(
-        `${import.meta.env.VITE_API_BASE_URL}/retailer/update/kyc`,
-        {
-          retailer_id: selectedRetailer.retailer_id,
-          kyc_status: kycStatus,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      toast.success("Retailer KYC status updated");
-
-      setEditFormData((prev) => ({
-        ...prev,
-        kyc_status: kycStatus,
-      }));
-
-      fetchRetailers(selectedDistributor, currentPage);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update KYC status");
-    }
-  };
-
-  // Export to Excel - fetches all data
   const exportToExcel = async () => {
     try {
       if (!selectedDistributor) {
@@ -555,9 +325,11 @@ export default function GetAllRetailers() {
       }
 
       toast.info("Fetching all data for export...");
-      
-      const allRetailers = await fetchAllRetailersForExport(selectedDistributor);
-      
+
+      const allRetailers = await fetchAllRetailersForExport(
+        selectedDistributor
+      );
+
       if (allRetailers.length === 0) {
         toast.error("No data to export");
         return;
@@ -568,20 +340,20 @@ export default function GetAllRetailers() {
         "Distributor ID": r.distributor_id,
         "Retailer ID": r.retailer_id,
         "Retailer Password": r.retailer_password,
-        "Name": r.retailer_name,
-        "Email": r.retailer_email,
-        "Phone": r.retailer_phone,
+        Name: r.retailer_name,
+        Email: r.retailer_email,
+        Phone: r.retailer_phone,
         "Business Name": r.business_name || "N/A",
         "Business Type": r.business_type || "N/A",
         "GST Number": r.gst_number || "N/A",
         "Aadhar Number": r.aadhar_number,
         "PAN Number": r.pan_number,
         "Date of Birth": formatDate(r.date_of_birth),
-        "Gender": r.gender,
-        "Address": r.address || "N/A",
-        "City": r.city || "N/A",
-        "State": r.state || "N/A",
-        "Pincode": r.pincode || "N/A",
+        Gender: r.gender,
+        Address: r.address || "N/A",
+        City: r.city || "N/A",
+        State: r.state || "N/A",
+        Pincode: r.pincode || "N/A",
         "Wallet Balance (₹)": r.wallet_balance?.toFixed(2) || "0.00",
         "KYC Status": r.kyc_status ? "Verified" : "Pending",
         "Account Status": r.is_blocked ? "Blocked" : "Active",
@@ -590,38 +362,39 @@ export default function GetAllRetailers() {
 
       const ws = XLSX.utils.json_to_sheet(data);
 
-      // Set column widths
       ws["!cols"] = [
-        { wch: 6 },  // S.No
-        { wch: 25 }, // Distributor ID
-        { wch: 25 }, // Retailer ID
-        { wch: 25 }, // Retailer Password
-        { wch: 25 }, // Name
-        { wch: 30 }, // Email
-        { wch: 15 }, // Phone
-        { wch: 25 }, // Business Name
-        { wch: 20 }, // Business Type
-        { wch: 18 }, // GST Number
-        { wch: 15 }, // Aadhar
-        { wch: 12 }, // PAN
-        { wch: 15 }, // DOB
-        { wch: 10 }, // Gender
-        { wch: 40 }, // Address
-        { wch: 15 }, // City
-        { wch: 15 }, // State
-        { wch: 10 }, // Pincode
-        { wch: 18 }, // Wallet Balance
-        { wch: 15 }, // KYC Status
-        { wch: 15 }, // Account Status
-        { wch: 20 }, // Created At
+        { wch: 6 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 10 },
+        { wch: 40 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 10 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 20 },
       ];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Retailers");
 
-      const distName = distributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name || selectedDistributor;
+      const distName =
+        distributors.find((d) => d.distributor_id === selectedDistributor)
+          ?.distributor_name || selectedDistributor;
       const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = `Retailers_${distName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.xlsx`;
+      const filename = `Retailers_${distName.replace(/[^a-zA-Z0-9]/g, "_")}_${timestamp}.xlsx`;
 
       XLSX.writeFile(wb, filename);
       toast.success(`Exported ${allRetailers.length} retailers successfully`);
@@ -632,16 +405,32 @@ export default function GetAllRetailers() {
 
   const getStatusBadge = (isBlocked: boolean) => {
     if (isBlocked) {
-      return <Badge className="bg-red-50 text-red-700 border-red-300">Blocked</Badge>;
+      return (
+        <Badge className="bg-red-50 text-red-700 border-red-300">
+          Blocked
+        </Badge>
+      );
     }
-    return <Badge className="bg-green-50 text-green-700 border-green-300">Active</Badge>;
+    return (
+      <Badge className="bg-green-50 text-green-700 border-green-300">
+        Active
+      </Badge>
+    );
   };
 
   const getKYCBadge = (kycStatus: boolean) => {
     if (kycStatus) {
-      return <Badge className="bg-green-50 text-green-700 border-green-300">Verified</Badge>;
+      return (
+        <Badge className="bg-green-50 text-green-700 border-green-300">
+          Verified
+        </Badge>
+      );
     }
-    return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
+    return (
+      <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">
+        Pending
+      </Badge>
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -665,7 +454,8 @@ export default function GetAllRetailers() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Retailers</h1>
           <p className="text-gray-600 mt-1">
-            Manage and view all retailers {totalCount > 0 && `(${totalCount} total)`}
+            Manage and view all retailers{" "}
+            {totalCount > 0 && `(${totalCount} total)`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -678,9 +468,12 @@ export default function GetAllRetailers() {
             <Download className="h-4 w-4 mr-2" />
             Export All
           </Button>
-          <Button 
-            onClick={() => selectedDistributor && fetchRetailers(selectedDistributor, currentPage)} 
-            variant="outline" 
+          <Button
+            onClick={() =>
+              selectedDistributor &&
+              fetchRetailers(selectedDistributor, currentPage)
+            }
+            variant="outline"
             size="sm"
             disabled={!selectedDistributor}
           >
@@ -704,14 +497,19 @@ export default function GetAllRetailers() {
               </div>
             ) : (
               <div className="flex-1 space-y-1">
-                <Select value={selectedDistributor} onValueChange={setSelectedDistributor}>
+                <Select
+                  value={selectedDistributor}
+                  onValueChange={setSelectedDistributor}
+                >
                   <SelectTrigger className="h-11 bg-white">
                     <SelectValue placeholder="Select distributor">
-                      {selectedDistributor && distributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name}
+                      {selectedDistributor &&
+                        distributors.find(
+                          (d) => d.distributor_id === selectedDistributor
+                        )?.distributor_name}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-w-md">
-                    {/* Search Bar Inside Dropdown */}
                     <div className="sticky top-0 z-10 bg-white p-2 border-b">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -744,7 +542,6 @@ export default function GetAllRetailers() {
                       )}
                     </div>
 
-                    {/* Distributor List */}
                     <div className="max-h-[300px] overflow-y-auto">
                       {filteredDistributors.length === 0 && !searchQuery ? (
                         <div className="px-2 py-1.5 text-sm text-gray-600 text-center">
@@ -754,7 +551,9 @@ export default function GetAllRetailers() {
                         <div className="p-4 text-sm text-gray-500 text-center">
                           <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                           <p className="font-medium">No results found</p>
-                          <p className="text-xs mt-1">Try a different search term</p>
+                          <p className="text-xs mt-1">
+                            Try a different search term
+                          </p>
                         </div>
                       ) : (
                         filteredDistributors.map((d) => (
@@ -768,7 +567,9 @@ export default function GetAllRetailers() {
                                 {d.distributor_name || "Unnamed"}
                               </span>
                               <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <span className="font-mono">{d.distributor_id}</span>
+                                <span className="font-mono">
+                                  {d.distributor_id}
+                                </span>
                                 {d.distributor_email && (
                                   <>
                                     <span className="text-gray-400">•</span>
@@ -784,7 +585,9 @@ export default function GetAllRetailers() {
                                 {d.business_name && (
                                   <>
                                     <span className="text-gray-400">•</span>
-                                    <span className="truncate max-w-[150px]">{d.business_name}</span>
+                                    <span className="truncate max-w-[150px]">
+                                      {d.business_name}
+                                    </span>
                                   </>
                                 )}
                               </div>
@@ -797,7 +600,9 @@ export default function GetAllRetailers() {
                 </Select>
                 {distributors.length > 0 && (
                   <p className="text-xs text-gray-500 pl-1">
-                    {filteredDistributors.length} of {distributors.length} distributor{distributors.length !== 1 ? 's' : ''} {searchQuery ? 'matching search' : 'available'}
+                    {filteredDistributors.length} of {distributors.length}{" "}
+                    distributor{distributors.length !== 1 ? "s" : ""}{" "}
+                    {searchQuery ? "matching search" : "available"}
                   </p>
                 )}
               </div>
@@ -811,7 +616,9 @@ export default function GetAllRetailers() {
         <CardContent className="p-0">
           {!selectedDistributor ? (
             <div className="flex justify-center items-center py-20">
-              <p className="text-gray-600">Please select a distributor to view retailers</p>
+              <p className="text-gray-600">
+                Please select a distributor to view retailers
+              </p>
             </div>
           ) : loadingRetailers ? (
             <div className="flex justify-center items-center py-20">
@@ -824,26 +631,55 @@ export default function GetAllRetailers() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50 hover:bg-gray-50">
-                      <TableHead className="text-center font-semibold">Sl No</TableHead>
-                      <TableHead className="text-center font-semibold">Dist ID</TableHead>
-                      <TableHead className="text-center font-semibold">Retailer ID</TableHead>
-                      <TableHead className="text-center font-semibold">Retailer Password</TableHead>
-                      <TableHead className="text-center font-semibold">Name</TableHead>
-                      <TableHead className="text-center font-semibold">Email</TableHead>
-                      <TableHead className="text-center font-semibold">Phone</TableHead>
-                      <TableHead className="text-center font-semibold">Business</TableHead>
-                      <TableHead className="text-center font-semibold">Wallet Balance</TableHead>
-                      <TableHead className="text-center font-semibold">KYC</TableHead>
-                      <TableHead className="text-center font-semibold">Status</TableHead>
-                      <TableHead className="text-center font-semibold">Actions</TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Sl No
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Dist ID
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Retailer ID
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Password
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Name
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Email
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Phone
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Business
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Wallet Balance
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        KYC
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-center font-semibold">
+                        Actions
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
                     {retailers.length > 0 ? (
                       retailers.map((r, idx) => (
-                        <TableRow key={r.retailer_id} className="hover:bg-gray-50">
-                          <TableCell className="text-center">{startIndex + idx + 1}</TableCell>
+                        <TableRow
+                          key={r.retailer_id}
+                          className="hover:bg-gray-50"
+                        >
+                          <TableCell className="text-center">
+                            {startIndex + idx + 1}
+                          </TableCell>
                           <TableCell className="text-center font-mono text-xs">
                             {r.distributor_id}
                           </TableCell>
@@ -851,16 +687,23 @@ export default function GetAllRetailers() {
                             {r.retailer_id}
                           </TableCell>
                           <TableCell className="font-mono text-center text-xs">
-                            {r.retailer_password || "N/A"}                          
+                            {r.retailer_password || "N/A"}
                           </TableCell>
                           <TableCell className="font-medium text-center">
                             {r.retailer_name || "N/A"}
                           </TableCell>
-                          <TableCell className="text-center">{r.retailer_email || "N/A"}</TableCell>
-                          <TableCell className="text-center">{r.retailer_phone || "N/A"}</TableCell>
-                          <TableCell className="text-center">{r.business_name || "N/A"}</TableCell>
+                          <TableCell className="text-center">
+                            {r.retailer_email || "N/A"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.retailer_phone || "N/A"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.business_name || "N/A"}
+                          </TableCell>
                           <TableCell className="font-semibold text-center text-green-600">
-                            ₹{r.wallet_balance?.toLocaleString("en-IN") || "0"}
+                            ₹
+                            {r.wallet_balance?.toLocaleString("en-IN") || "0"}
                           </TableCell>
                           <TableCell className="text-center">
                             {getKYCBadge(r.kyc_status)}
@@ -869,21 +712,34 @@ export default function GetAllRetailers() {
                             {getStatusBadge(r.is_blocked)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditClick(r)}
-                              disabled={isFetchingProfile}
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditClick(r)}
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleManageLimits(r)}
+                                className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                              >
+                                <Settings className="h-4 w-4 mr-1" />
+                                Limits
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center py-20 text-gray-600">
+                        <TableCell
+                          colSpan={12}
+                          className="text-center py-20 text-gray-600"
+                        >
                           No retailers found for the selected distributor
                         </TableCell>
                       </TableRow>
@@ -896,7 +752,8 @@ export default function GetAllRetailers() {
               {totalCount > itemsPerPage && (
                 <div className="flex items-center justify-between border-t px-6 py-4">
                   <p className="text-sm text-gray-600">
-                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalCount)} of{" "}
+                    Showing {startIndex + 1} to{" "}
+                    {Math.min(startIndex + itemsPerPage, totalCount)} of{" "}
                     {totalCount} retailers
                   </p>
                   <div className="flex gap-2">
@@ -909,34 +766,41 @@ export default function GetAllRetailers() {
                       Previous
                     </Button>
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
+                      {Array.from(
+                        { length: Math.min(5, totalPages) },
+                        (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={
+                                currentPage === pageNum ? "default" : "outline"
+                              }
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-10"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
                         }
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className="w-10"
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
+                      )}
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(p + 1, totalPages))
+                      }
                       disabled={currentPage === totalPages}
                     >
                       Next
@@ -949,446 +813,22 @@ export default function GetAllRetailers() {
         </CardContent>
       </Card>
 
-      {/* Loading Overlay */}
-      {isFetchingProfile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-3 shadow-xl">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium">Loading profile data...</p>
-          </div>
-        </div>
-      )}
-
       {/* Edit Retailer Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Edit Retailer Profile</DialogTitle>
-          </DialogHeader>
-          
-          {isFetchingProfile ? (
-            <div className="flex justify-center items-center py-10">
-              <Loader2 className="animate-spin h-6 w-6 text-primary" />
-              <span className="ml-2 text-muted-foreground">Loading profile...</span>
-            </div>
-          ) : (
-            selectedRetailer && (
-              <div className="space-y-6">
-                {/* Non-editable Info */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-secondary/50 rounded-lg">
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Retailer ID</Label>
-                    <p className="font-mono text-sm font-semibold">{selectedRetailer.retailer_id}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                    <p className="text-sm">{selectedRetailer.retailer_email}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Created At</Label>
-                    <p className="text-sm">{formatDate(selectedRetailer.created_at)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
-                    <p className="text-sm">{formatDate(selectedRetailer.date_of_birth)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
-                    <p className="text-sm">{selectedRetailer.gender}</p>
-                  </div>
-                </div>
+      <EditRetailerDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        retailer={selectedRetailer}
+        authToken={getAuthToken()}
+        onSuccess={handleDialogSuccess}
+      />
 
-                {/* Personal Information Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                      <User className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Personal Information</h3>
-                      <p className="text-sm text-muted-foreground">Update basic details</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-name">
-                        Full Name <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-name"
-                        type="text"
-                        value={editFormData.retailer_name}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, retailer_name: e.target.value })
-                        }
-                        placeholder="Enter name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-phone">
-                        Phone Number <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-phone"
-                        type="tel"
-                        inputMode="numeric"
-                        value={editFormData.retailer_phone}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            retailer_phone: e.target.value.replace(/\D/g, ""),
-                          })
-                        }
-                        placeholder="Enter 10-digit phone number"
-                        maxLength={10}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* KYC Documents Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-                      <CreditCard className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">
-                        KYC Documents
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Update identity verification documents
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-aadhar">
-                        Aadhar Number <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-aadhar"
-                        type="tel"
-                        inputMode="numeric"
-                        value={editFormData.aadhar_number}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            aadhar_number: e.target.value.replace(/\D/g, ""),
-                          })
-                        }
-                        placeholder="Enter 12-digit Aadhar number"
-                        maxLength={12}
-                        className="font-mono"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Format: 123456789012
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-pan">
-                        PAN Number <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="edit-pan"
-                        type="text"
-                        value={editFormData.pan_number}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            pan_number: e.target.value.toUpperCase(),
-                          })
-                        }
-                        placeholder="Enter PAN number"
-                        maxLength={10}
-                        className="font-mono uppercase"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Format: ABCDE1234F
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Business Information Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                      <Building className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Business Information</h3>
-                      <p className="text-sm text-muted-foreground">Company details</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-business-name">Business Name</Label>
-                      <Input
-                        id="edit-business-name"
-                        type="text"
-                        value={editFormData.business_name}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            business_name: e.target.value,
-                          })
-                        }
-                        placeholder="Enter business name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-business-type">Business Type</Label>
-                      <Input
-                        id="edit-business-type"
-                        type="text"
-                        value={editFormData.business_type}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            business_type: e.target.value,
-                          })
-                        }
-                        placeholder="e.g., Retail Shop"
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="edit-gst">
-                        GST Number{" "}
-                        <span className="text-muted-foreground font-normal">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="edit-gst"
-                        type="text"
-                        value={editFormData.gst_number}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            gst_number: e.target.value.toUpperCase(),
-                          })
-                        }
-                        placeholder="22AAAAA0000A1Z5"
-                        maxLength={15}
-                        className="font-mono uppercase"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Address Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                      <MapPin className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Address Details</h3>
-                      <p className="text-sm text-muted-foreground">Location information</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-address">Full Address</Label>
-                      <Textarea
-                        id="edit-address"
-                        value={editFormData.address}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, address: e.target.value })
-                        }
-                        placeholder="Enter complete address"
-                        className="min-h-[80px] resize-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-city">City</Label>
-                        <Input
-                          id="edit-city"
-                          type="text"
-                          value={editFormData.city}
-                          onChange={(e) =>
-                            setEditFormData({ ...editFormData, city: e.target.value })
-                          }
-                          placeholder="Enter city"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-state">State</Label>
-                        <Input
-                          id="edit-state"
-                          type="text"
-                          value={editFormData.state}
-                          onChange={(e) =>
-                            setEditFormData({ ...editFormData, state: e.target.value })
-                          }
-                          placeholder="Enter state"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-pincode">Pincode</Label>
-                        <Input
-                          id="edit-pincode"
-                          type="tel"
-                          inputMode="numeric"
-                          value={editFormData.pincode}
-                          onChange={(e) =>
-                            setEditFormData({
-                              ...editFormData,
-                              pincode: e.target.value.replace(/\D/g, ""),
-                            })
-                          }
-                          placeholder="400001"
-                          maxLength={6}
-                          className="font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Wallet Balance Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                      <Wallet className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Wallet Balance</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Set exact wallet balance (not added to existing)
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-wallet-balance">
-                      Wallet Balance (₹) <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="edit-wallet-balance"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editFormData.wallet_balance}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          wallet_balance: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      placeholder="Enter wallet balance"
-                      className="font-mono text-lg"
-                    />
-                    <p className="text-xs text-yellow-600 font-medium">
-                      ⚠️ Note: This will set the balance to exactly this amount, not add to existing balance
-                    </p>
-                  </div>
-                </div>
-
-                {/* Account Status Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 pb-3 border-b">
-                    <h3 className="font-semibold text-lg">Account Status</h3>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-block-status">Block Status</Label>
-                      <Select
-                        value={editFormData.is_blocked ? "blocked" : "active"}
-                        onValueChange={(value) =>
-                          handleUpdateRetailerBlockStatus(value === "blocked")
-                        }
-                      >
-                        <SelectTrigger className="h-11">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              <span>Active</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="blocked">
-                            <div className="flex items-center gap-2">
-                              <Ban className="h-4 w-4 text-red-600" />
-                              <span>Blocked</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-kyc-status">KYC Status</Label>
-                      <Select
-                        value={editFormData.kyc_status ? "verified" : "pending"}
-                        onValueChange={(value) =>
-                          handleUpdateRetailerKYCStatus(value === "verified")
-                        }
-                      >
-                        <SelectTrigger className="h-11">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="verified">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              <span>Verified</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="pending">
-                            <div className="flex items-center gap-2">
-                              <Ban className="h-4 w-4 text-yellow-600" />
-                              <span>Pending</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          )}
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditDialogOpen(false);
-                setSelectedRetailer(null);
-              }}
-              disabled={isUpdating || isFetchingProfile}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateRetailer}
-              disabled={isUpdating || isFetchingProfile}
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                "Update Retailer"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Limit Management Dialog */}
+      <LimitManagementDialog
+        open={limitDialogOpen}
+        onOpenChange={setLimitDialogOpen}
+        retailer={selectedRetailer}
+        authToken={getAuthToken()}
+      />
     </div>
   );
 }
