@@ -189,6 +189,19 @@ export default function LimitManagementDialog({
       return;
     }
 
+    // Check if limit already exists for this service
+    const existingLimit = currentLimits.find(
+      (limit) => limit.service === newLimitService
+    );
+    
+    if (existingLimit) {
+      toast.error(
+        `A limit for ${getServiceLabel(newLimitService)} already exists. Please edit the existing limit instead.`,
+        { duration: 5000 }
+      );
+      return;
+    }
+
     setIsCreatingLimit(true);
     try {
       const response = await axios.post(
@@ -213,7 +226,23 @@ export default function LimitManagementDialog({
       await fetchRetailerLimits(retailer.retailer_id);
     } catch (error: any) {
       console.error("Create limit error:", error);
-      toast.error(error.response?.data?.message || "Failed to create limit");
+      
+      // Handle specific error messages
+      const errorMessage = error.response?.data?.message || "";
+      
+      if (errorMessage.includes("duplicate") || errorMessage.includes("unique constraint")) {
+        toast.error(
+          `A limit for ${getServiceLabel(newLimitService)} already exists. Please edit the existing limit instead.`,
+          { duration: 5000 }
+        );
+      } else if (errorMessage.includes("SQLSTATE 23505")) {
+        toast.error(
+          `A limit for this service already exists. Please edit the existing limit instead.`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.error(errorMessage || "Failed to create limit");
+      }
     } finally {
       setIsCreatingLimit(false);
     }
@@ -349,13 +378,28 @@ export default function LimitManagementDialog({
                       <SelectValue placeholder="Select service" />
                     </SelectTrigger>
                     <SelectContent>
-                      {serviceOptions.map((service) => (
-                        <SelectItem key={service.value} value={service.value}>
-                          {service.label}
-                        </SelectItem>
-                      ))}
+                      {serviceOptions.map((service) => {
+                        const hasLimit = currentLimits.some(
+                          (limit) => limit.service === service.value
+                        );
+                        return (
+                          <SelectItem
+                            key={service.value}
+                            value={service.value}
+                            disabled={hasLimit}
+                          >
+                            {service.label}
+                            {hasLimit && " (Already exists)"}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
+                  {currentLimits.some((limit) => limit.service === newLimitService) && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ A limit for this service already exists. Edit it below.
+                    </p>
+                  )}
                 </div>
 
                 <div>
