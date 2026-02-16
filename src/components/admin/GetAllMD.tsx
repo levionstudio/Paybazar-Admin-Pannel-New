@@ -256,7 +256,7 @@ export default function GetAllMD() {
         gst_number: mdData.gst_number ?? "",
         kyc_status: Boolean(mdData.kyc_status),
         is_blocked: Boolean(mdData.is_blocked),
-        wallet_balance: Number(mdData.wallet_balance ?? 0),
+        wallet_balance: Number(mdData.wallet_balance ),
       });
 
       toast.success("Profile loaded");
@@ -1218,7 +1218,7 @@ export default function GetAllMD() {
                       onChange={(e) =>
                         setEditFormData({
                           ...editFormData,
-                          wallet_balance: parseFloat(e.target.value) || 0,
+                          wallet_balance: parseFloat(e.target.value) ,
                         })
                       }
                       placeholder="Enter wallet balance"

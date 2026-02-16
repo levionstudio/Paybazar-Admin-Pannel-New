@@ -112,7 +112,7 @@ export default function GetAllRetailers() {
     null
   );
 
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Filter distributors based on search query
   useEffect(() => {
@@ -222,16 +222,22 @@ export default function GetAllRetailers() {
 
     try {
       const offset = (page - 1) * itemsPerPage;
+      
+      // Build query parameters using URLSearchParams to ensure proper encoding
+      const params = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        offset: offset.toString(),
+        page: page.toString(),
+        per_page: itemsPerPage.toString(),
+        page_size: itemsPerPage.toString(),
+      });
+
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-          },
-          params: {
-            limit: itemsPerPage,
-            offset: offset,
           },
         }
       );
@@ -265,16 +271,21 @@ export default function GetAllRetailers() {
     if (!token) return [];
 
     try {
+      const params = new URLSearchParams({
+        limit: "100000",
+        offset: "0",
+        page: "1",
+        per_page: "100000",
+        page_size: "100000",
+        all: "true",
+      });
+
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/retailer/get/distributor/${distributorId}?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-          },
-          params: {
-            limit: 100000,
-            offset: 0,
           },
         }
       );
@@ -294,11 +305,15 @@ export default function GetAllRetailers() {
     if (selectedDistributor) {
       fetchRetailers(selectedDistributor, currentPage);
     }
-  }, [selectedDistributor, currentPage]);
+  }, [selectedDistributor, currentPage, itemsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedDistributor]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const handleEditClick = (retailer: Retailer) => {
     setSelectedRetailer(retailer);
@@ -458,7 +473,28 @@ export default function GetAllRetailers() {
             {totalCount > 0 && `(${totalCount} total)`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+              Show:
+            </Label>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => setItemsPerPage(Number(value))}
+            >
+              <SelectTrigger className="w-[100px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="h-8 w-px bg-gray-300"></div>
           <Button
             onClick={exportToExcel}
             variant="outline"
