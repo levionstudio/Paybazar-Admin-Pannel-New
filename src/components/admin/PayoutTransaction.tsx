@@ -42,7 +42,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, RefreshCw, Eye, CheckCircle, XCircle, Download, Search, Calendar, Check, ChevronsUpDown } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  Eye,
+  Download,
+  Search,
+  Calendar,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DecodedToken {
@@ -58,7 +67,6 @@ interface User {
   [key: string]: any;
 }
 
-// ✅ CORRECTED: Matches Go backend GetAllPayoutTransactionsResponseModel
 interface PayoutTransaction {
   payout_transaction_id: string;
   operator_transaction_id: string | null;
@@ -68,15 +76,15 @@ interface PayoutTransaction {
   retailer_name: string;
   retailer_business_name: string;
   mobile_number: string;
-  bank_name: string;  // ✅ Changed from beneficiary_bank_name
+  bank_name: string;
   beneficiary_name: string;
-  account_number: string;  // ✅ Changed from beneficiary_account_number
-  ifsc_code: string;  // ✅ Changed from beneficiary_ifsc_code
+  account_number: string;
+  ifsc_code: string;
   amount: number;
   before_balance: number;
   after_balance: number;
   transfer_type: string;
-  transaction_status: string;  // ✅ Changed from payout_transaction_status
+  transaction_status: string;
   admin_commision: number;
   master_distributor_commision: number;
   distributor_commision: number;
@@ -85,20 +93,39 @@ interface PayoutTransaction {
   updated_at: string;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Returns YYYY-MM-DD in LOCAL time (avoids UTC-shift issues) */
+const toLocalDateStr = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const getTodayDate = () => toLocalDateStr(new Date());
+
+/**
+ * Extract LOCAL date string (YYYY-MM-DD) from an ISO timestamp string.
+ * The created_at from backend is UTC; convert to local before comparing.
+ */
+const extractLocalDate = (isoString: string): string => {
+  try {
+    return toLocalDateStr(new Date(isoString));
+  } catch {
+    return "";
+  }
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 const PayoutTransactionPage = () => {
   const token = localStorage.getItem("authToken");
   const [adminId, setAdminId] = useState("");
   const [users, setUsers] = useState<User[]>([]);
-  
-  // Get today's date in YYYY-MM-DD format
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-  
-  // All Transactions - Raw data from API
+
+  // All Transactions
   const [allTransactionsRaw, setAllTransactionsRaw] = useState<PayoutTransaction[]>([]);
-  // All Transactions - Filtered data
   const [filteredAllTransactions, setFilteredAllTransactions] = useState<PayoutTransaction[]>([]);
   const [allSearchTerm, setAllSearchTerm] = useState("");
   const [allStatusFilter, setAllStatusFilter] = useState("ALL");
@@ -106,10 +133,9 @@ const PayoutTransactionPage = () => {
   const [allEndDate, setAllEndDate] = useState(getTodayDate());
   const [allCurrentPage, setAllCurrentPage] = useState(1);
   const [allRecordsPerPage, setAllRecordsPerPage] = useState(10);
-  
-  // Custom Tab - Raw data from API
+
+  // Custom Tab
   const [userTransactionsRaw, setUserTransactionsRaw] = useState<PayoutTransaction[]>([]);
-  // Custom Tab - Filtered data
   const [filteredUserTransactions, setFilteredUserTransactions] = useState<PayoutTransaction[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
@@ -120,82 +146,167 @@ const PayoutTransactionPage = () => {
   const [userEndDate, setUserEndDate] = useState(getTodayDate());
   const [userCurrentPage, setUserCurrentPage] = useState(1);
   const [userRecordsPerPage, setUserRecordsPerPage] = useState(10);
-  
-  // Loading states
+
+  // Loading / Dialog
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingAllTransactions, setLoadingAllTransactions] = useState(false);
   const [loadingUserTransactions, setLoadingUserTransactions] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  
-  // Dialog states
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PayoutTransaction | null>(null);
   const [operatorTxnId, setOperatorTxnId] = useState("");
-
   const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
-const [refunding, setRefunding] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+
+  // ─── Validation ────────────────────────────────────────────────────────────
+
+  /**
+   * Validates the date range inputs.
+   * Returns true if valid, false + shows toast if invalid.
+   */
+  const validateDateRange = (start: string, end: string): boolean => {
+    if (!start && !end) return true; // both empty → no filter, OK
+
+    if (start && end && start > end) {
+      toast.error("Start date cannot be after end date.");
+      return false;
+    }
+
+    const today = getTodayDate();
+    if (start && start > today) {
+      toast.error("Start date cannot be in the future.");
+      return false;
+    }
+    if (end && end > today) {
+      toast.error("End date cannot be in the future.");
+      return false;
+    }
+
+    return true;
+  };
+
+  // Controlled setters that validate before applying
+  const handleAllStartDate = (val: string) => {
+    if (allEndDate && val > allEndDate) {
+      toast.error("Start date cannot be after end date.");
+      return;
+    }
+    setAllStartDate(val);
+  };
+
+  const handleAllEndDate = (val: string) => {
+    const today = getTodayDate();
+    if (val > today) {
+      toast.error("End date cannot be in the future.");
+      return;
+    }
+    if (allStartDate && val < allStartDate) {
+      toast.error("End date cannot be before start date.");
+      return;
+    }
+    setAllEndDate(val);
+  };
+
+  const handleUserStartDate = (val: string) => {
+    if (userEndDate && val > userEndDate) {
+      toast.error("Start date cannot be after end date.");
+      return;
+    }
+    setUserStartDate(val);
+  };
+
+  const handleUserEndDate = (val: string) => {
+    const today = getTodayDate();
+    if (val > today) {
+      toast.error("End date cannot be in the future.");
+      return;
+    }
+    if (userStartDate && val < userStartDate) {
+      toast.error("End date cannot be before start date.");
+      return;
+    }
+    setUserEndDate(val);
+  };
+
+  // ─── Utilities ─────────────────────────────────────────────────────────────
 
   const isRefunded = (status: string) =>
-  ["REFUND", "REFUNDED"].includes(status?.toUpperCase());
+    ["REFUND", "REFUNDED"].includes(status?.toUpperCase());
 
-
-  // Helper function to format transfer type
   const getTransferTypeName = (transferType: string) => {
     switch (transferType) {
-      case "5":
-        return "IMPS";
-      case "6":
-        return "NEFT";
-      default:
-        return transferType;
+      case "5": return "IMPS";
+      case "6": return "NEFT";
+      default:  return transferType;
     }
   };
 
-  // Decode token
-  useEffect(() => {
-    if (!token) {
-      toast.error("No authentication token found. Please login.");
-      return;
+  const getStatusBadge = (status: string) => {
+    const upperStatus = status?.toUpperCase();
+    switch (upperStatus) {
+      case "SUCCESS":
+        return <Badge className="bg-green-50 text-green-700 border-green-300">Success</Badge>;
+      case "PENDING":
+        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
+      case "FAILED":
+        return <Badge className="bg-red-50 text-red-700 border-red-300">Failed</Badge>;
+      case "REFUND":
+      case "REFUNDED":
+        return <Badge className="bg-purple-600 text-white">Refunded</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
+  };
 
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleString("en-IN", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatAmount = (amount?: number | string | null) => {
+    if (amount === null || amount === undefined || isNaN(Number(amount))) return "0.00";
+    return Number(amount).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  // ─── Auth ──────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!token) { toast.error("No authentication token found. Please login."); return; }
     try {
       const decoded = jwtDecode<DecodedToken>(token);
-      
       if (!decoded.exp || decoded.exp * 1000 < Date.now()) {
         toast.error("Session expired. Please login again.");
         localStorage.removeItem("authToken");
         return;
       }
-      
       setAdminId(decoded.admin_id);
-    } catch (error) {
+    } catch {
       toast.error("Invalid token. Please login again.");
     }
   }, [token]);
 
-  // Fetch all users
+  // ─── Fetch Users ───────────────────────────────────────────────────────────
+
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!adminId || !token) {
-        return;
-      }
-
+      if (!adminId || !token) return;
       setLoadingUsers(true);
-      
       try {
         const response = await axios.get(
           `${import.meta.env.VITE_API_BASE_URL}/retailer/get/admin/${adminId}?limit=10000&page=1`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
         );
-
         if (response.data.status === "success" && response.data.data) {
-          const usersList = response.data.data.retailers || [];
-          setUsers(usersList);
+          setUsers(response.data.data.retailers || []);
         } else {
           setUsers([]);
         }
@@ -206,245 +317,71 @@ const [refunding, setRefunding] = useState(false);
         setLoadingUsers(false);
       }
     };
-
     fetchUsers();
   }, [adminId, token]);
 
+  // ─── Fetch All Transactions ────────────────────────────────────────────────
+  // ✅ FIX: Pass limit=100000 (or a very large number) so the backend returns
+  //         ALL records, not just the default 10.
+  //         Also pass start_date & end_date as query params if your backend
+  //         supports them — comment those out if it doesn't.
 
-  const handleOpenRefund = (tx: PayoutTransaction) => {
-  if (isRefunded(tx.transaction_status)) {
-    toast.error("This transaction is already refunded");
-    return;
-  }
+  const fetchAllTransactions = useCallback(async () => {
+    if (!token) { toast.error("Authentication required"); return; }
+    setLoadingAllTransactions(true);
+    try {
+      const response = await axios.get(
+        // 👇 Added limit=100000 to avoid the default-10 backend cap
+        `${import.meta.env.VITE_API_BASE_URL}/payout/get/all?limit=100000&page=1`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-  setSelectedTransaction(tx);
-  setRefundConfirmOpen(true);
-};
-const handleRefund = async () => {
-  if (!selectedTransaction || !token) {
-    toast.error("Missing transaction data");
-    return;
-  }
+      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
+      const sorted = list.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
-  if (isRefunded(selectedTransaction.transaction_status)) {
-    toast.error("This transaction is already refunded");
-    return;
-  }
-
-  setRefunding(true);
-
-  try {
-    const url = `${import.meta.env.VITE_API_BASE_URL}/payout/refund/${selectedTransaction.payout_transaction_id}`;
-
-    console.log("🔄 Refunding payout:", selectedTransaction.payout_transaction_id);
-
-    await axios.put(
-      url,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    toast.success("Payout refunded successfully");
-
-    // 🔥 Update UI instantly
-    setAllTransactionsRaw(prev =>
-      prev.map(tx =>
-        tx.payout_transaction_id === selectedTransaction.payout_transaction_id
-          ? { ...tx, transaction_status: "REFUNDED" }
-          : tx
-      )
-    );
-
-    setUserTransactionsRaw(prev =>
-      prev.map(tx =>
-        tx.payout_transaction_id === selectedTransaction.payout_transaction_id
-          ? { ...tx, transaction_status: "REFUNDED" }
-          : tx
-      )
-    );
-
-    setSelectedTransaction(prev =>
-      prev ? { ...prev, transaction_status: "REFUNDED" } : null
-    );
-
-    setRefundConfirmOpen(false);
-    setDetailsOpen(false);
-  } catch (error: any) {
-    console.error("❌ Payout refund failed", error);
-    toast.error(error.response?.data?.message || "Refund failed");
-  } finally {
-    setRefunding(false);
-  }
-};
-
-  // Fetch all transactions (no filters in API)
-const fetchAllTransactions = useCallback(async () => {
-  if (!token) {
-    console.warn("⚠️ fetchAllTransactions skipped: missing token");
-    toast.error("Authentication required");
-    return;
-  }
-
-  setLoadingAllTransactions(true);
-
-  console.log("➡️ Fetching ALL payout transactions", {
-    url: `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
-  });
-
-  try {
-    const response = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/payout/get/all`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-
-    console.log("📦 ALL TRANSACTIONS RAW RESPONSE:", response.data);
-
-    // Backend returns "transactions"
-    const list: PayoutTransaction[] =
-      response.data?.data?.transactions || [];
-
-    console.log("📄 ALL TRANSACTIONS LIST:", list);
-
-    const sorted = list.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-    );
-
-    console.log("📊 ALL TRANSACTIONS SORTED:", sorted);
-
-    // 🔍 Validate balances & commissions
-    sorted.forEach((tx, index) => {
-      if (
-        tx.before_balance === undefined ||
-        tx.after_balance === undefined
-      ) {
-        console.warn("⚠️ Missing balance fields", {
-          index,
-          payout_transaction_id: tx.payout_transaction_id,
-          before_balance: tx.before_balance,
-          after_balance: tx.after_balance,
-        });
-      }
-
-      if (
-        tx.admin_commision === undefined ||
-        tx.retailer_commision === undefined
-      ) {
-        console.warn("⚠️ Missing commission fields", {
-          index,
-          payout_transaction_id: tx.payout_transaction_id,
-          admin_commision: tx.admin_commision,
-          retailer_commision: tx.retailer_commision,
-        });
-      }
-    });
-
-    setAllTransactionsRaw(sorted);
-    toast.success(`Loaded ${sorted.length} transactions`);
-  } catch (error: any) {
-    console.error("❌ ERROR FETCHING ALL TRANSACTIONS:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to fetch transactions"
-    );
-    setAllTransactionsRaw([]);
-  } finally {
-    setLoadingAllTransactions(false);
-    console.log("✅ fetchAllTransactions completed");
-  }
-}, [token]);
-
-
-  // ✅ FETCH ALL TRANSACTIONS ON PAGE LOAD
-  useEffect(() => {
-    if (token) {
-      fetchAllTransactions();
+      setAllTransactionsRaw(sorted);
+      toast.success(`Loaded ${sorted.length} transactions`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch transactions");
+      setAllTransactionsRaw([]);
+    } finally {
+      setLoadingAllTransactions(false);
     }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) fetchAllTransactions();
   }, [token, fetchAllTransactions]);
 
-  // Fetch transactions for selected user (no filters in API)
-const fetchUserTransactions = useCallback(async () => {
-  if (!selectedUserId || !token) {
-    console.warn("⚠️ fetchUserTransactions skipped", {
-      selectedUserId,
-      hasToken: !!token,
-    });
-    return;
-  }
+  // ─── Fetch User Transactions ───────────────────────────────────────────────
 
-  setLoadingUserTransactions(true);
+  const fetchUserTransactions = useCallback(async () => {
+    if (!selectedUserId || !token) return;
+    setLoadingUserTransactions(true);
+    try {
+      const response = await axios.get(
+        // 👇 Added limit=100000 here too
+        `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}?limit=100000&page=1`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-  console.log("➡️ Fetching USER transactions", {
-    selectedUserId,
-    url: `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
-  });
+      const list: PayoutTransaction[] = response.data?.data?.transactions || [];
+      const sorted = list.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
-  try {
-    const response = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/payout/get/${selectedUserId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+      setUserTransactionsRaw(sorted);
+      toast.success(`Loaded ${sorted.length} transactions`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to fetch transactions");
+      setUserTransactionsRaw([]);
+    } finally {
+      setLoadingUserTransactions(false);
+    }
+  }, [selectedUserId, token]);
 
-    console.log("📦 USER TRANSACTIONS RAW RESPONSE:", response.data);
-
-    const list: PayoutTransaction[] =
-      response.data?.data?.transactions || [];
-
-    console.log("📄 USER TRANSACTIONS LIST:", list);
-
-    const sorted = list.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-    );
-
-    console.log("📊 USER TRANSACTIONS SORTED:", sorted);
-
-    // Optional: detect missing balances / commissions
-    sorted.forEach((tx, index) => {
-      if (
-        tx.before_balance === undefined ||
-        tx.after_balance === undefined
-      ) {
-        console.warn("⚠️ Missing balance fields", {
-          index,
-          payout_transaction_id: tx.payout_transaction_id,
-          before_balance: tx.before_balance,
-          after_balance: tx.after_balance,
-        });
-      }
-
-      if (
-        tx.admin_commision === undefined ||
-        tx.retailer_commision === undefined
-      ) {
-        console.warn("⚠️ Missing commission fields", {
-          index,
-          payout_transaction_id: tx.payout_transaction_id,
-          admin_commision: tx.admin_commision,
-          retailer_commision: tx.retailer_commision,
-        });
-      }
-    });
-
-    setUserTransactionsRaw(sorted);
-    toast.success(`Loaded ${sorted.length} transactions`);
-  } catch (error: any) {
-    console.error("❌ ERROR FETCHING USER TRANSACTIONS:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to fetch transactions"
-    );
-    setUserTransactionsRaw([]);
-  } finally {
-    setLoadingUserTransactions(false);
-    console.log("✅ fetchUserTransactions completed");
-  }
-}, [selectedUserId, token]);
-
-
-  // Effect for fetching user transactions when user changes
   useEffect(() => {
     if (selectedUserId && token) {
       fetchUserTransactions();
@@ -454,87 +391,70 @@ const fetchUserTransactions = useCallback(async () => {
     }
   }, [selectedUserId, token, fetchUserTransactions]);
 
-  // Apply ALL filters for All Transactions (date, status, search)
-  useEffect(() => {
-    let filtered = [...allTransactionsRaw];
+  // ─── Frontend Filtering ────────────────────────────────────────────────────
+  // ✅ FIX: Use extractLocalDate() so UTC timestamps compare correctly to the
+  //         local-timezone date strings in the filter inputs.
 
-    // Date range filter
-    if (allStartDate || allEndDate) {
+  const applyFilters = (
+    raw: PayoutTransaction[],
+    startDate: string,
+    endDate: string,
+    statusFilter: string,
+    searchTerm: string
+  ): PayoutTransaction[] => {
+    let filtered = [...raw];
+
+    // Date range — compare LOCAL dates
+    if (startDate || endDate) {
+      const start = startDate || "1900-01-01";
+      const end   = endDate   || "2100-12-31";
       filtered = filtered.filter((t) => {
-        const txDate = new Date(t.created_at);
-        const txDateStr = txDate.toISOString().split('T')[0];
-        
-        const start = allStartDate || "1900-01-01";
-        const end = allEndDate || "2100-12-31";
-        
-        return txDateStr >= start && txDateStr <= end;
+        const txDate = extractLocalDate(t.created_at);
+        return txDate >= start && txDate <= end;
       });
     }
 
-    // Status filter - ✅ Changed to transaction_status
-    if (allStatusFilter && allStatusFilter !== "ALL") {
-      filtered = filtered.filter((t) => 
-        t.transaction_status.toUpperCase() === allStatusFilter.toUpperCase()
+    // Status
+    if (statusFilter && statusFilter !== "ALL") {
+      filtered = filtered.filter(
+        (t) => t.transaction_status?.toUpperCase() === statusFilter.toUpperCase()
       );
     }
 
-    // Search filter
-    if (allSearchTerm.trim()) {
-      const s = allSearchTerm.toLowerCase();
-      filtered = filtered.filter((t) =>
-        (t.order_id && t.order_id.toLowerCase().includes(s)) ||
-        t.mobile_number.includes(s) ||
-        t.beneficiary_name.toLowerCase().includes(s) ||
-        t.account_number.includes(s) ||
-        (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
+    // Search
+    if (searchTerm.trim()) {
+      const s = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          (t.order_id && t.order_id.toLowerCase().includes(s)) ||
+          t.mobile_number.includes(s) ||
+          t.beneficiary_name.toLowerCase().includes(s) ||
+          t.account_number.includes(s) ||
+          (t.operator_transaction_id &&
+            t.operator_transaction_id.toLowerCase().includes(s)) ||
+          t.retailer_name.toLowerCase().includes(s)
       );
     }
 
-    setFilteredAllTransactions(filtered);
+    return filtered;
+  };
+
+  useEffect(() => {
+    setFilteredAllTransactions(
+      applyFilters(allTransactionsRaw, allStartDate, allEndDate, allStatusFilter, allSearchTerm)
+    );
     setAllCurrentPage(1);
   }, [allTransactionsRaw, allStartDate, allEndDate, allStatusFilter, allSearchTerm]);
 
-  // Apply ALL filters for User Transactions (date, status, search)
   useEffect(() => {
-    let filtered = [...userTransactionsRaw];
-
-    // Date range filter
-    if (userStartDate || userEndDate) {
-      filtered = filtered.filter((t) => {
-        const txDate = new Date(t.created_at);
-        const txDateStr = txDate.toISOString().split('T')[0];
-        
-        const start = userStartDate || "1900-01-01";
-        const end = userEndDate || "2100-12-31";
-        
-        return txDateStr >= start && txDateStr <= end;
-      });
-    }
-
-    // Status filter - ✅ Changed to transaction_status
-    if (userStatusFilter && userStatusFilter !== "ALL") {
-      filtered = filtered.filter((t) => 
-        t.transaction_status.toUpperCase() === userStatusFilter.toUpperCase()
-      );
-    }
-
-    // Search filter
-    if (userSearchTerm.trim()) {
-      const s = userSearchTerm.toLowerCase();
-      filtered = filtered.filter((t) =>
-        (t.order_id && t.order_id.toLowerCase().includes(s)) ||
-        t.mobile_number.includes(s) ||
-        t.beneficiary_name.toLowerCase().includes(s) ||
-        t.account_number.includes(s) ||
-        (t.operator_transaction_id && t.operator_transaction_id.toLowerCase().includes(s))
-      );
-    }
-
-    setFilteredUserTransactions(filtered);
+    setFilteredUserTransactions(
+      applyFilters(userTransactionsRaw, userStartDate, userEndDate, userStatusFilter, userSearchTerm)
+    );
     setUserCurrentPage(1);
   }, [userTransactionsRaw, userStartDate, userEndDate, userStatusFilter, userSearchTerm]);
 
-  // Clear filters
+  // ─── Clear Filters ─────────────────────────────────────────────────────────
+
   const clearAllFilters = () => {
     setAllSearchTerm("");
     setAllStatusFilter("ALL");
@@ -553,212 +473,157 @@ const fetchUserTransactions = useCallback(async () => {
     toast.success("All filters cleared");
   };
 
-  // Export to Excel
-const exportToExcel = async (isUserData: boolean) => {
-  try {
-    const allData = isUserData
-      ? filteredUserTransactions
-      : filteredAllTransactions;
+  // ─── Refund ────────────────────────────────────────────────────────────────
 
-    console.log("📤 EXPORT INIT", {
-      isUserData,
-      records: allData.length,
-    });
-
-    if (allData.length === 0) {
-      toast.error("No transactions to export");
+  const handleOpenRefund = (tx: PayoutTransaction) => {
+    if (isRefunded(tx.transaction_status)) {
+      toast.error("This transaction is already refunded");
       return;
     }
+    setSelectedTransaction(tx);
+    setRefundConfirmOpen(true);
+  };
 
-    // Helper for safe numbers
-    const num = (v?: number | null) =>
-      typeof v === "number" && !isNaN(v) ? v : 0;
-
-    const data = allData.map((t, i) => ({
-      "S.No": i + 1,
-      "Date & Time": formatDate(t.created_at),
-      "Order ID": t.order_id || "-",
-      "Transaction ID": t.operator_transaction_id || "-",
-      "Retailer ID": t.retailer_id || "-",
-      "Retailer Name": t.retailer_name || "-",
-      "Business": t.retailer_business_name || "-",
-      "Mobile": t.mobile_number || "-",
-      "Beneficiary Name": t.beneficiary_name || "-",
-      "Bank": t.bank_name || "-",
-      "Account Number": t.account_number || "-",
-      "IFSC": t.ifsc_code || "-",
-      "Amount (₹)": num(t.amount).toFixed(2),
-      "Before Balance (₹)": num(t.before_balance).toFixed(2),
-      "After Balance (₹)": num(t.after_balance).toFixed(2),
-      "Transfer Type": getTransferTypeName(t.transfer_type),
-      "Status": t.transaction_status,
-      "Admin Commission": num(t.admin_commision).toFixed(2),
-      "MD Commission": num(t.master_distributor_commision).toFixed(2),
-      "Distributor Commission": num(t.distributor_commision).toFixed(2),
-      "Retailer Commission": num(t.retailer_commision).toFixed(2),
-    }));
-
-    console.log("📄 EXPORT ROW SAMPLE", data[0]);
-
-    // Totals
-    const totalAmount = allData.reduce((s, t) => s + num(t.amount), 0);
-    const totalBeforeBal = allData.reduce((s, t) => s + num(t.before_balance), 0);
-    const totalAfterBal = allData.reduce((s, t) => s + num(t.after_balance), 0);
-    const totalAdminComm = allData.reduce((s, t) => s + num(t.admin_commision), 0);
-    const totalMDComm = allData.reduce((s, t) => s + num(t.master_distributor_commision), 0);
-    const totalDistComm = allData.reduce((s, t) => s + num(t.distributor_commision), 0);
-    const totalRetailerComm = allData.reduce((s, t) => s + num(t.retailer_commision), 0);
-
-    const summaryRow = {
-      "S.No": "",
-      "Date & Time": "",
-      "Order ID": "TOTAL",
-      "Transaction ID": "",
-      "Retailer ID": "",
-      "Retailer Name": "",
-      "Business": "",
-      "Mobile": "",
-      "Beneficiary Name": "",
-      "Bank": "",
-      "Account Number": "",
-      "IFSC": "",
-      "Amount (₹)": totalAmount.toFixed(2),
-      "Before Balance (₹)": totalBeforeBal.toFixed(2),
-      "After Balance (₹)": totalAfterBal.toFixed(2),
-      "Transfer Type": "",
-      "Status": "",
-      "Admin Commission": totalAdminComm.toFixed(2),
-      "MD Commission": totalMDComm.toFixed(2),
-      "Distributor Commission": totalDistComm.toFixed(2),
-      "Retailer Commission": totalRetailerComm.toFixed(2),
-    };
-
-    const finalData = [...data, summaryRow];
-
-    const ws = XLSX.utils.json_to_sheet(finalData);
-
-    ws["!cols"] = [
-      { wch: 6 },  { wch: 18 }, { wch: 20 }, { wch: 25 },
-      { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 14 },
-      { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
-      { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Transactions");
-
-    const date = new Date().toISOString().slice(0, 10);
-    const filename = isUserData
-      ? `Retailer_${selectedUserId}_Transactions_${date}.xlsx`
-      : `All_Payout_Transactions_${date}.xlsx`;
-
-    XLSX.writeFile(wb, filename);
-
-    console.log("✅ EXPORT COMPLETE", {
-      filename,
-      rows: finalData.length,
-    });
-
-    toast.success(`Exported ${allData.length} transactions successfully`);
-  } catch (error) {
-    console.error("❌ EXPORT FAILED", error);
-    toast.error("Failed to export data");
-  }
-};
-
-
-  // Update transaction status
-  const handleUpdateStatus = async (newStatus: "SUCCESS" | "FAILED" | "PENDING") => {
-    if (!selectedTransaction || !token) {
-      toast.error("Missing required data");
+  const handleRefund = async () => {
+    if (!selectedTransaction || !token) { toast.error("Missing transaction data"); return; }
+    if (isRefunded(selectedTransaction.transaction_status)) {
+      toast.error("This transaction is already refunded");
       return;
     }
-
-    const requestPayload = {
-      payout_transaction_id: selectedTransaction.payout_transaction_id,
-      status: newStatus,
-      operator_transaction_id: operatorTxnId.trim() || undefined,
-    };
-
-    const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/admin/update/payout/request`;
-    
-    setUpdatingStatus(true);
-    
+    setRefunding(true);
     try {
-      const response = await axios.post(apiUrl, requestPayload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/payout/refund/${selectedTransaction.payout_transaction_id}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Payout refunded successfully");
 
+      const updater = (prev: PayoutTransaction[]) =>
+        prev.map((tx) =>
+          tx.payout_transaction_id === selectedTransaction.payout_transaction_id
+            ? { ...tx, transaction_status: "REFUNDED" }
+            : tx
+        );
+      setAllTransactionsRaw(updater);
+      setUserTransactionsRaw(updater);
+      setSelectedTransaction((prev) => prev ? { ...prev, transaction_status: "REFUNDED" } : null);
+      setRefundConfirmOpen(false);
+      setDetailsOpen(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Refund failed");
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  // ─── Update Status ─────────────────────────────────────────────────────────
+
+  const handleUpdateStatus = async (newStatus: "SUCCESS" | "FAILED" | "PENDING") => {
+    if (!selectedTransaction || !token) { toast.error("Missing required data"); return; }
+    setUpdatingStatus(true);
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/admin/update/payout/request`,
+        {
+          payout_transaction_id: selectedTransaction.payout_transaction_id,
+          status: newStatus,
+          operator_transaction_id: operatorTxnId.trim() || undefined,
+        },
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+      );
       if (response.status === 200 && response.data?.status === "success") {
         toast.success(`Transaction status updated to ${newStatus}`);
         setOperatorTxnId("");
         setDetailsOpen(false);
-        
-        // Refresh both lists
         fetchAllTransactions();
-        if (selectedUserId) {
-          fetchUserTransactions();
-        }
+        if (selectedUserId) fetchUserTransactions();
       } else {
         toast.error(response.data?.message || "Failed to update transaction status");
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || "Failed to update transaction status";
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || "Failed to update transaction status");
     } finally {
       setUpdatingStatus(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const upperStatus = status.toUpperCase();
-    switch (upperStatus) {
-      case "SUCCESS":
-        return <Badge className="bg-green-50 text-green-700 border-green-300">Success</Badge>;
-      case "PENDING":
-        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
-      case "FAILED":
-        return <Badge className="bg-red-50 text-red-700 border-red-300">Failed</Badge>;
-   case "REFUND":
-case "REFUNDED":
-  return <Badge className="bg-purple-600 text-white">Refunded</Badge>;
+  // ─── Export ────────────────────────────────────────────────────────────────
 
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const exportToExcel = async (isUserData: boolean) => {
     try {
-      const date = new Date(dateString);
-      return date.toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const allData = isUserData ? filteredUserTransactions : filteredAllTransactions;
+      if (allData.length === 0) { toast.error("No transactions to export"); return; }
+
+      const num = (v?: number | null) => (typeof v === "number" && !isNaN(v) ? v : 0);
+
+      const data = allData.map((t, i) => ({
+        "S.No": i + 1,
+        "Date & Time": formatDate(t.created_at),
+        "Order ID": t.order_id || "-",
+        "Transaction ID": t.operator_transaction_id || "-",
+        "Retailer ID": t.retailer_id || "-",
+        "Retailer Name": t.retailer_name || "-",
+        "Business": t.retailer_business_name || "-",
+        "Mobile": t.mobile_number || "-",
+        "Beneficiary Name": t.beneficiary_name || "-",
+        "Bank": t.bank_name || "-",
+        "Account Number": t.account_number || "-",
+        "IFSC": t.ifsc_code || "-",
+        "Amount (₹)": num(t.amount).toFixed(2),
+        "Before Balance (₹)": num(t.before_balance).toFixed(2),
+        "After Balance (₹)": num(t.after_balance).toFixed(2),
+        "Transfer Type": getTransferTypeName(t.transfer_type),
+        "Status": t.transaction_status,
+        "Admin Commission": num(t.admin_commision).toFixed(2),
+        "MD Commission": num(t.master_distributor_commision).toFixed(2),
+        "Distributor Commission": num(t.distributor_commision).toFixed(2),
+        "Retailer Commission": num(t.retailer_commision).toFixed(2),
+      }));
+
+      const totalAmount      = allData.reduce((s, t) => s + num(t.amount), 0);
+      const totalBeforeBal   = allData.reduce((s, t) => s + num(t.before_balance), 0);
+      const totalAfterBal    = allData.reduce((s, t) => s + num(t.after_balance), 0);
+      const totalAdminComm   = allData.reduce((s, t) => s + num(t.admin_commision), 0);
+      const totalMDComm      = allData.reduce((s, t) => s + num(t.master_distributor_commision), 0);
+      const totalDistComm    = allData.reduce((s, t) => s + num(t.distributor_commision), 0);
+      const totalRetailerComm = allData.reduce((s, t) => s + num(t.retailer_commision), 0);
+
+      const summaryRow = {
+        "S.No": "", "Date & Time": "", "Order ID": "TOTAL",
+        "Transaction ID": "", "Retailer ID": "", "Retailer Name": "",
+        "Business": "", "Mobile": "", "Beneficiary Name": "", "Bank": "",
+        "Account Number": "", "IFSC": "",
+        "Amount (₹)": totalAmount.toFixed(2),
+        "Before Balance (₹)": totalBeforeBal.toFixed(2),
+        "After Balance (₹)": totalAfterBal.toFixed(2),
+        "Transfer Type": "", "Status": "",
+        "Admin Commission": totalAdminComm.toFixed(2),
+        "MD Commission": totalMDComm.toFixed(2),
+        "Distributor Commission": totalDistComm.toFixed(2),
+        "Retailer Commission": totalRetailerComm.toFixed(2),
+      };
+
+      const ws = XLSX.utils.json_to_sheet([...data, summaryRow]);
+      ws["!cols"] = [
+        {wch:6},{wch:18},{wch:20},{wch:25},{wch:15},{wch:20},
+        {wch:20},{wch:14},{wch:22},{wch:18},{wch:18},{wch:14},
+        {wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:18},{wch:18},{wch:18},
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = isUserData
+        ? `Retailer_${selectedUserId}_Transactions_${date}.xlsx`
+        : `All_Payout_Transactions_${date}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      toast.success(`Exported ${allData.length} transactions successfully`);
     } catch {
-      return dateString;
+      toast.error("Failed to export data");
     }
   };
 
-const formatAmount = (amount?: number | string | null) => {
-  if (amount === null || amount === undefined || isNaN(Number(amount))) {
-    return "0.00";
-  }
-
-  const num = Number(amount);
-
-  return num.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
+  // ─── View Details ──────────────────────────────────────────────────────────
 
   const handleViewDetails = (transaction: PayoutTransaction) => {
     setSelectedTransaction(transaction);
@@ -766,7 +631,8 @@ const formatAmount = (amount?: number | string | null) => {
     setDetailsOpen(true);
   };
 
-  // Render transaction table
+  // ─── Table Renderer ────────────────────────────────────────────────────────
+
   const renderTransactionTable = (
     transactions: PayoutTransaction[],
     currentPage: number,
@@ -775,7 +641,7 @@ const formatAmount = (amount?: number | string | null) => {
     loading: boolean
   ) => {
     const totalPages = Math.ceil(transactions.length / recordsPerPage);
-    const indexOfLastRecord = currentPage * recordsPerPage;
+    const indexOfLastRecord  = currentPage * recordsPerPage;
     const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
     const paginatedTransactions = transactions.slice(indexOfFirstRecord, indexOfLastRecord);
 
@@ -802,46 +668,21 @@ const formatAmount = (amount?: number | string | null) => {
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50 hover:bg-gray-50">
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Date & Time
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Transaction ID
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Mobile
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Beneficiary
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Amount (₹)
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Before Balance (₹)
-                </TableHead>
-                  <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                    After Balance (₹)
+                {[
+                  "Date & Time","Transaction ID","Mobile","Beneficiary",
+                  "Amount (₹)","Before Balance (₹)","After Balance (₹)","Status","Actions","Refund",
+                ].map((h) => (
+                  <TableHead key={h} className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
+                    {h}
                   </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Status
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase text-gray-700 whitespace-nowrap px-4">
-                  Actions
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold uppercase px-4">
-  Refund
-</TableHead>
-
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedTransactions.map((tx, idx) => (
                 <TableRow
                   key={tx.payout_transaction_id}
-                  className={`border-b hover:bg-gray-50 ${
-                    idx % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                  }`}
+                  className={`border-b hover:bg-gray-50 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/60"}`}
                 >
                   <TableCell className="py-3 px-4 text-center text-sm text-gray-900 whitespace-nowrap">
                     {formatDate(tx.created_at)}
@@ -868,36 +709,21 @@ const formatAmount = (amount?: number | string | null) => {
                     {getStatusBadge(tx.transaction_status)}
                   </TableCell>
                   <TableCell className="py-3 px-4 text-center whitespace-nowrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleViewDetails(tx)}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Details
+                    <Button size="sm" variant="outline" onClick={() => handleViewDetails(tx)}>
+                      <Eye className="w-4 h-4 mr-1" /> Details
                     </Button>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
-  {isRefunded(tx.transaction_status) ? (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled
-      className="cursor-not-allowed opacity-50"
-    >
-      Refunded
-    </Button>
-  ) : (
-    <Button
-      size="sm"
-      variant="destructive"
-      onClick={() => handleOpenRefund(tx)}
-    >
-      Refund
-    </Button>
-  )}
-</TableCell>
-
+                    {isRefunded(tx.transaction_status) ? (
+                      <Button size="sm" variant="outline" disabled className="cursor-not-allowed opacity-50">
+                        Refunded
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="destructive" onClick={() => handleOpenRefund(tx)}>
+                        Refund
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -911,44 +737,24 @@ const formatAmount = (amount?: number | string | null) => {
               Page {currentPage} of {totalPages} ({transactions.length} total records)
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
                 Previous
               </Button>
               <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
+                  let pageNum: number;
+                  if (totalPages <= 5)              pageNum = i + 1;
+                  else if (currentPage <= 3)        pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else                              pageNum = currentPage - 2 + i;
                   return (
-                    <Button
-                      key={pageNum}
-                      variant={currentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setCurrentPage(pageNum)}
-                    >
+                    <Button key={pageNum} variant={currentPage === pageNum ? "default" : "outline"} size="sm" onClick={() => setCurrentPage(pageNum)}>
                       {pageNum}
                     </Button>
                   );
                 })}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
                 Next
               </Button>
             </div>
@@ -958,6 +764,160 @@ const formatAmount = (amount?: number | string | null) => {
     );
   };
 
+  // ─── Shared Filter Card ────────────────────────────────────────────────────
+
+  const renderFilterCard = (
+    startDate: string, setStart: (v: string) => void,
+    endDate: string,   setEnd:   (v: string) => void,
+    statusFilter: string, setStatus: (v: string) => void,
+    searchTerm: string, setSearch: (v: string) => void,
+    onClear: () => void,
+    hasActiveFilters: boolean
+  ) => (
+    <Card className="shadow-md">
+      <CardContent className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">Filters</h3>
+            {hasActiveFilters && (
+              <Button onClick={onClear} variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                Clear Filters
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {/* Start Date */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Calendar className="h-4 w-4" /> Start Date
+              </Label>
+              <Input
+                type="date"
+                value={startDate}
+                max={endDate || getTodayDate()}
+                onChange={(e) => setStart(e.target.value)}
+                className="bg-white"
+              />
+            </div>
+
+            {/* End Date */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Calendar className="h-4 w-4" /> End Date
+              </Label>
+              <Input
+                type="date"
+                value={endDate}
+                min={startDate}
+                max={getTodayDate()}
+                onChange={(e) => setEnd(e.target.value)}
+                className="bg-white"
+              />
+            </div>
+
+            {/* Status */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatus}>
+                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Status</SelectItem>
+                  <SelectItem value="SUCCESS">Success</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                  <SelectItem value="REFUND">Refund</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Search */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Search className="h-4 w-4" /> Search
+              </Label>
+              <Input
+                placeholder="Order ID, phone, name, account..."
+                value={searchTerm}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-white"
+              />
+            </div>
+          </div>
+
+          {/* Live filter summary */}
+          {(startDate || endDate || statusFilter !== "ALL" || searchTerm) && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {startDate && (
+                <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
+                  From: {startDate}
+                </Badge>
+              )}
+              {endDate && (
+                <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
+                  To: {endDate}
+                </Badge>
+              )}
+              {statusFilter !== "ALL" && (
+                <Badge variant="outline" className="text-xs text-purple-700 border-purple-300">
+                  Status: {statusFilter}
+                </Badge>
+              )}
+              {searchTerm && (
+                <Badge variant="outline" className="text-xs text-gray-700 border-gray-300">
+                  Search: "{searchTerm}"
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // ─── Shared Table Card ─────────────────────────────────────────────────────
+
+  const renderTableCard = (
+    filtered: PayoutTransaction[],
+    currentPage: number, setPage: (p: number) => void,
+    recordsPerPage: number, setRecordsPerPage: (n: number) => void,
+    loading: boolean,
+    onRefresh: () => void,
+    isUserData: boolean
+  ) => (
+    <Card className="shadow-md overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b bg-gray-50 px-4 md:px-6 py-4 gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">Show</span>
+            <Select value={recordsPerPage.toString()} onValueChange={(v) => { setRecordsPerPage(Number(v)); setPage(1); }}>
+              <SelectTrigger className="h-9 w-20 bg-white"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50, 100].map((n) => (
+                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm font-medium text-gray-700">entries</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700">{filtered.length} transactions</span>
+            <Button onClick={() => exportToExcel(isUserData)} variant="outline" size="sm" disabled={filtered.length === 0}>
+              <Download className="mr-2 h-4 w-4" /> Export
+            </Button>
+            <Button onClick={onRefresh} disabled={loading} variant="outline" size="sm">
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
+        </div>
+
+        {renderTransactionTable(filtered, currentPage, recordsPerPage, setPage, loading)}
+      </CardContent>
+    </Card>
+  );
+
+  // ─── Guard ─────────────────────────────────────────────────────────────────
+
   if (loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -966,194 +926,55 @@ const formatAmount = (amount?: number | string | null) => {
     );
   }
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Payout Transactions</h1>
-          <p className="text-gray-600 mt-1">
-            View and manage payout transaction history
-          </p>
+          <p className="text-gray-600 mt-1">View and manage payout transaction history</p>
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="all">
-            All Transactions
-          </TabsTrigger>
+          <TabsTrigger value="all">All Transactions</TabsTrigger>
           <TabsTrigger value="custom">Custom (By Retailer)</TabsTrigger>
         </TabsList>
 
-        {/* All Transactions Tab */}
+        {/* ── All Transactions ── */}
         <TabsContent value="all" className="space-y-6">
-          {/* Filters */}
-          <Card className="shadow-md">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-gray-900">Filters</h3>
-                  {(allSearchTerm || allStatusFilter !== "ALL" || allStartDate !== getTodayDate() || allEndDate !== getTodayDate()) && (
-                    <Button
-                      onClick={clearAllFilters}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      Clear Filters
-                    </Button>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      Start Date
-                    </Label>
-                    <Input
-                      type="date"
-                      value={allStartDate}
-                      onChange={(e) => setAllStartDate(e.target.value)}
-                      max={allEndDate || getTodayDate()}
-                      className="bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      End Date
-                    </Label>
-                    <Input
-                      type="date"
-                      value={allEndDate}
-                      onChange={(e) => setAllEndDate(e.target.value)}
-                      min={allStartDate}
-                      max={getTodayDate()}
-                      className="bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Status</Label>
-                    <Select 
-                      value={allStatusFilter} 
-                      onValueChange={(value) => setAllStatusFilter(value)}
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All Status</SelectItem>
-                        <SelectItem value="SUCCESS">Success</SelectItem>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="FAILED">Failed</SelectItem>
-                        <SelectItem value="REFUND">Refund</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                      <Search className="h-4 w-4" />
-                      Search
-                    </Label>
-                    <Input
-                      placeholder="Search by order ID, phone, name..."
-                      value={allSearchTerm}
-                      onChange={(e) => setAllSearchTerm(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Table */}
-          <Card className="shadow-md overflow-hidden">
-            <CardContent className="p-0">
-              {/* Controls */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b bg-gray-50 px-4 md:px-6 py-4 gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-700">Show</span>
-                  <Select
-                    value={allRecordsPerPage.toString()}
-                    onValueChange={(value) => {
-                      setAllRecordsPerPage(Number(value));
-                      setAllCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-20 bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm font-medium text-gray-700">entries</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-700">
-                    {filteredAllTransactions.length} transactions
-                  </span>
-                  <Button
-                    onClick={() => exportToExcel(false)}
-                    variant="outline"
-                    size="sm"
-                    disabled={filteredAllTransactions.length === 0}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                  <Button
-                    onClick={() => fetchAllTransactions()}
-                    disabled={loadingAllTransactions}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loadingAllTransactions ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
-                </div>
-              </div>
-
-              {renderTransactionTable(
-                filteredAllTransactions,
-                allCurrentPage,
-                allRecordsPerPage,
-                setAllCurrentPage,
-                loadingAllTransactions
-              )}
-            </CardContent>
-          </Card>
+          {renderFilterCard(
+            allStartDate, handleAllStartDate,
+            allEndDate,   handleAllEndDate,
+            allStatusFilter, setAllStatusFilter,
+            allSearchTerm,   setAllSearchTerm,
+            clearAllFilters,
+            !!(allSearchTerm || allStatusFilter !== "ALL" || allStartDate !== getTodayDate() || allEndDate !== getTodayDate())
+          )}
+          {renderTableCard(
+            filteredAllTransactions,
+            allCurrentPage, setAllCurrentPage,
+            allRecordsPerPage, setAllRecordsPerPage,
+            loadingAllTransactions,
+            fetchAllTransactions,
+            false
+          )}
         </TabsContent>
 
-        {/* Custom (By Retailer) Tab */}
+        {/* ── Custom (By Retailer) ── */}
         <TabsContent value="custom" className="space-y-6">
-          {/* User Selection */}
+          {/* Retailer Selector */}
           <Card className="shadow-md">
             <CardContent className="pt-6">
               <div className="space-y-2">
-                <Label htmlFor="user-select" className="text-base font-semibold">
-                  Select Retailer
-                </Label>
+                <Label className="text-base font-semibold">Select Retailer</Label>
                 <Popover open={openUserCombobox} onOpenChange={setOpenUserCombobox}>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openUserCombobox}
-                      className="w-full justify-between"
-                    >
+                    <Button variant="outline" role="combobox" aria-expanded={openUserCombobox} className="w-full justify-between">
                       {selectedUserId
-                        ? users.find((user) => user.retailer_id === selectedUserId)?.retailer_name
+                        ? users.find((u) => u.retailer_id === selectedUserId)?.retailer_name
                         : "Select retailer..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -1174,17 +995,11 @@ const formatAmount = (amount?: number | string | null) => {
                               setUserCurrentPage(1);
                             }}
                           >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedUserId === user.retailer_id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
+                            <Check className={cn("mr-2 h-4 w-4", selectedUserId === user.retailer_id ? "opacity-100" : "opacity-0")} />
                             <div className="flex flex-col">
                               <span className="font-medium">{user.retailer_name}</span>
                               <span className="text-xs text-gray-500">
-                                {user.retailer_phone && `${user.retailer_phone} • `}
-                                {user.retailer_id}
+                                {user.retailer_phone && `${user.retailer_phone} • `}{user.retailer_id}
                               </span>
                             </div>
                           </CommandItem>
@@ -1199,346 +1014,117 @@ const formatAmount = (amount?: number | string | null) => {
 
           {selectedUserId && (
             <>
-              {/* Filters */}
-              <Card className="shadow-md">
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold text-gray-900">Filters</h3>
-                      {(userSearchTerm || userStatusFilter !== "ALL" || userStartDate !== getTodayDate() || userEndDate !== getTodayDate()) && (
-                        <Button
-                          onClick={clearUserFilters}
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          Clear Filters
-                        </Button>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          Start Date
-                        </Label>
-                        <Input
-                          type="date"
-                          value={userStartDate}
-                          onChange={(e) => setUserStartDate(e.target.value)}
-                          max={userEndDate || getTodayDate()}
-                          className="bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          End Date
-                        </Label>
-                        <Input
-                          type="date"
-                          value={userEndDate}
-                          onChange={(e) => setUserEndDate(e.target.value)}
-                          min={userStartDate}
-                          max={getTodayDate()}
-                          className="bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-gray-700">Status</Label>
-                        <Select 
-                          value={userStatusFilter} 
-                          onValueChange={(value) => setUserStatusFilter(value)}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Status</SelectItem>
-                            <SelectItem value="SUCCESS">Success</SelectItem>
-                            <SelectItem value="PENDING">Pending</SelectItem>
-                            <SelectItem value="FAILED">Failed</SelectItem>
-                            <SelectItem value="REFUND">Refund</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                          <Search className="h-4 w-4" />
-                          Search
-                        </Label>
-                        <Input
-                          placeholder="Search by order ID, phone, name..."
-                          value={userSearchTerm}
-                          onChange={(e) => setUserSearchTerm(e.target.value)}
-                          className="bg-white"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Table */}
-              <Card className="shadow-md overflow-hidden">
-                <CardContent className="p-0">
-                  {/* Controls */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b bg-gray-50 px-4 md:px-6 py-4 gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-700">Show</span>
-                      <Select
-                        value={userRecordsPerPage.toString()}
-                        onValueChange={(value) => {
-                          setUserRecordsPerPage(Number(value));
-                          setUserCurrentPage(1);
-                        }}
-                      >
-                        <SelectTrigger className="h-9 w-20 bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                          <SelectItem value="100">100</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span className="text-sm font-medium text-gray-700">entries</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-700">
-                        {filteredUserTransactions.length} transactions
-                      </span>
-                      <Button
-                        onClick={() => exportToExcel(true)}
-                        variant="outline"
-                        size="sm"
-                        disabled={filteredUserTransactions.length === 0}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Export
-                      </Button>
-                      <Button
-                        onClick={() => fetchUserTransactions()}
-                        disabled={loadingUserTransactions}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <RefreshCw className={`w-4 h-4 mr-2 ${loadingUserTransactions ? 'animate-spin' : ''}`} />
-                        Refresh
-                      </Button>
-                    </div>
-                  </div>
-
-                  {renderTransactionTable(
-                    filteredUserTransactions,
-                    userCurrentPage,
-                    userRecordsPerPage,
-                    setUserCurrentPage,
-                    loadingUserTransactions
-                  )}
-                </CardContent>
-              </Card>
+              {renderFilterCard(
+                userStartDate, handleUserStartDate,
+                userEndDate,   handleUserEndDate,
+                userStatusFilter, setUserStatusFilter,
+                userSearchTerm,   setUserSearchTerm,
+                clearUserFilters,
+                !!(userSearchTerm || userStatusFilter !== "ALL" || userStartDate !== getTodayDate() || userEndDate !== getTodayDate())
+              )}
+              {renderTableCard(
+                filteredUserTransactions,
+                userCurrentPage, setUserCurrentPage,
+                userRecordsPerPage, setUserRecordsPerPage,
+                loadingUserTransactions,
+                fetchUserTransactions,
+                true
+              )}
             </>
           )}
         </TabsContent>
       </Tabs>
 
-      {/* Transaction Details Dialog */}
+      {/* ── Transaction Details Dialog ── */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Transaction Details</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Transaction Details</DialogTitle></DialogHeader>
           {selectedTransaction && (
             <div className="space-y-6">
-            
-              {/* Transaction Information */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label className="text-gray-600 text-xs">Payout Transaction ID</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.payout_transaction_id}
-                  </p>
+                  <p className="font-mono text-sm font-medium mt-1">{selectedTransaction.payout_transaction_id}</p>
                 </div>
-
                 <div>
                   <Label className="text-gray-600 text-xs">Order ID</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.order_id || "-"}
-                  </p>
+                  <p className="font-mono text-sm font-medium mt-1">{selectedTransaction.order_id || "-"}</p>
                 </div>
-
                 <div>
                   <Label className="text-gray-600 text-xs">Partner Request ID</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.partner_request_id}
-                  </p>
+                  <p className="font-mono text-sm font-medium mt-1">{selectedTransaction.partner_request_id}</p>
                 </div>
-
                 {selectedTransaction.operator_transaction_id && (
                   <div className="col-span-2">
                     <Label className="text-gray-600 text-xs">Operator Transaction ID</Label>
-                    <p className="font-mono text-sm font-medium mt-1">
-                      {selectedTransaction.operator_transaction_id}
-                    </p>
+                    <p className="font-mono text-sm font-medium mt-1">{selectedTransaction.operator_transaction_id}</p>
                   </div>
                 )}
-                <div>
-                  <Label className="text-gray-600 text-xs">Retailer Name</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.retailer_name}
-                  </p>  
-                </div>
-                <div>
-                  <Label className="text-gray-600 text-xs">Retailer Business Name</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.retailer_business_name}
-                  </p>  
-                </div>
-                <div>
-                  <Label className="text-gray-600 text-xs">Retailer ID</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.retailer_id}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-600 text-xs">Mobile Number</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.mobile_number}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Beneficiary Name</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.beneficiary_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Bank Name</Label>
-                  <p className="font-medium mt-1">{selectedTransaction.bank_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Account Number</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.account_number}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">IFSC Code</Label>
-                  <p className="font-mono text-sm font-medium mt-1">
-                    {selectedTransaction.ifsc_code}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Transfer Type</Label>
-                  <p className="font-medium mt-1">{getTransferTypeName(selectedTransaction.transfer_type)}</p>
-                </div>
-
+                <div><Label className="text-gray-600 text-xs">Retailer Name</Label><p className="font-mono text-sm font-medium mt-1">{selectedTransaction.retailer_name}</p></div>
+                <div><Label className="text-gray-600 text-xs">Business Name</Label><p className="font-mono text-sm font-medium mt-1">{selectedTransaction.retailer_business_name}</p></div>
+                <div><Label className="text-gray-600 text-xs">Retailer ID</Label><p className="font-mono text-sm font-medium mt-1">{selectedTransaction.retailer_id}</p></div>
+                <div><Label className="text-gray-600 text-xs">Mobile Number</Label><p className="font-medium mt-1">{selectedTransaction.mobile_number}</p></div>
+                <div><Label className="text-gray-600 text-xs">Beneficiary Name</Label><p className="font-medium mt-1">{selectedTransaction.beneficiary_name}</p></div>
+                <div><Label className="text-gray-600 text-xs">Bank Name</Label><p className="font-medium mt-1">{selectedTransaction.bank_name}</p></div>
+                <div><Label className="text-gray-600 text-xs">Account Number</Label><p className="font-mono text-sm font-medium mt-1">{selectedTransaction.account_number}</p></div>
+                <div><Label className="text-gray-600 text-xs">IFSC Code</Label><p className="font-mono text-sm font-medium mt-1">{selectedTransaction.ifsc_code}</p></div>
+                <div><Label className="text-gray-600 text-xs">Transfer Type</Label><p className="font-medium mt-1">{getTransferTypeName(selectedTransaction.transfer_type)}</p></div>
                 <div>
                   <Label className="text-gray-600 text-xs">Amount</Label>
-                  <p className="font-semibold text-lg mt-1 text-green-600">
-                    ₹{formatAmount(selectedTransaction.amount)}
-                  </p>
+                  <p className="font-semibold text-lg mt-1 text-green-600">₹{formatAmount(selectedTransaction.amount)}</p>
                 </div>
-
+                <div>
+                  <Label className="text-gray-600 text-xs">Before Balance</Label>
+                  <p className="font-semibold mt-1">₹{formatAmount(selectedTransaction.before_balance)}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-600 text-xs">After Balance</Label>
+                  <p className="font-semibold mt-1">₹{formatAmount(selectedTransaction.after_balance)}</p>
+                </div>
                 <div>
                   <Label className="text-gray-600 text-xs">Status</Label>
-                  <div className="mt-1">
-                    {getStatusBadge(selectedTransaction.transaction_status)}
-                  </div>
+                  <div className="mt-1">{getStatusBadge(selectedTransaction.transaction_status)}</div>
                 </div>
-
-                {/* Commission Fields */}
                 {selectedTransaction.admin_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Admin Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.admin_commision}</p>
-                  </div>
+                  <div><Label className="text-gray-600 text-xs">Admin Commission</Label><p className="font-medium mt-1">₹{formatAmount(selectedTransaction.admin_commision)}</p></div>
                 )}
-
                 {selectedTransaction.master_distributor_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Master Distributor Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.master_distributor_commision}</p>
-                  </div>
+                  <div><Label className="text-gray-600 text-xs">MD Commission</Label><p className="font-medium mt-1">₹{formatAmount(selectedTransaction.master_distributor_commision)}</p></div>
                 )}
-
                 {selectedTransaction.distributor_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Distributor Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.distributor_commision}</p>
-                  </div>
+                  <div><Label className="text-gray-600 text-xs">Distributor Commission</Label><p className="font-medium mt-1">₹{formatAmount(selectedTransaction.distributor_commision)}</p></div>
                 )}
-
                 {selectedTransaction.retailer_commision !== undefined && (
-                  <div>
-                    <Label className="text-gray-600 text-xs">Retailer Commission</Label>
-                    <p className="font-medium mt-1">₹{selectedTransaction.retailer_commision}</p>
-                  </div>
+                  <div><Label className="text-gray-600 text-xs">Retailer Commission</Label><p className="font-medium mt-1">₹{formatAmount(selectedTransaction.retailer_commision)}</p></div>
                 )}
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Created At</Label>
-                  <p className="font-medium mt-1">
-                    {formatDate(selectedTransaction.created_at)}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-gray-600 text-xs">Updated At</Label>
-                  <p className="font-medium mt-1">
-                    {formatDate(selectedTransaction.updated_at)}
-                  </p>
-                </div>
+                <div><Label className="text-gray-600 text-xs">Created At</Label><p className="font-medium mt-1">{formatDate(selectedTransaction.created_at)}</p></div>
+                <div><Label className="text-gray-600 text-xs">Updated At</Label><p className="font-medium mt-1">{formatDate(selectedTransaction.updated_at)}</p></div>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Refund Confirm Dialog ── */}
       <Dialog open={refundConfirmOpen} onOpenChange={setRefundConfirmOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Confirm Refund</DialogTitle>
-    </DialogHeader>
-
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Are you sure you want to refund this payout?
-      </p>
-
-      <div className="bg-gray-50 border rounded p-3 space-y-1 text-sm">
-        <div><b>Retailer:</b> {selectedTransaction?.retailer_name}</div>
-        <div><b>Amount:</b> ₹{formatAmount(selectedTransaction?.amount)}</div>
-        <div><b>Payout ID:</b> {selectedTransaction?.payout_transaction_id}</div>
-      </div>
-
-      <div className="flex justify-end gap-3">
-        <Button
-          variant="outline"
-          onClick={() => setRefundConfirmOpen(false)}
-          disabled={refunding}
-        >
-          Cancel
-        </Button>
-
-        <Button
-          variant="destructive"
-          onClick={handleRefund}
-          disabled={refunding}
-        >
-          {refunding ? "Refunding..." : "Yes, Refund"}
-        </Button>
-      </div>
-    </div>
-  </DialogContent>
-</Dialog>
-
+        <DialogContent>
+          <DialogHeader><DialogTitle>Confirm Refund</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Are you sure you want to refund this payout?</p>
+            <div className="bg-gray-50 border rounded p-3 space-y-1 text-sm">
+              <div><b>Retailer:</b> {selectedTransaction?.retailer_name}</div>
+              <div><b>Amount:</b> ₹{formatAmount(selectedTransaction?.amount)}</div>
+              <div><b>Payout ID:</b> {selectedTransaction?.payout_transaction_id}</div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setRefundConfirmOpen(false)} disabled={refunding}>Cancel</Button>
+              <Button variant="destructive" onClick={handleRefund} disabled={refunding}>
+                {refunding ? "Refunding..." : "Yes, Refund"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
