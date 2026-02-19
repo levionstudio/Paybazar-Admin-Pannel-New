@@ -158,7 +158,7 @@ export function FundRequest() {
     }
   };
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (page = currentPage, limit = recordsPerPage) => {
     setLoading(true);
     const userId = getAdminIdFromToken();
     
@@ -173,6 +173,8 @@ export function FundRequest() {
     }
 
     try {
+      const offset = (page - 1) * limit;
+
       // Build payload for POST body
       const payload: {
         id: string;
@@ -195,7 +197,7 @@ export function FundRequest() {
       }
 
       const response = await axios.post(
-        `${API_BASE_URL}/fund_request/get/request_to`,
+        `${API_BASE_URL}/fund_request/get/request_to?limit=${limit}&offset=${offset}`,
         payload,
         getAuthHeaders()
       );
@@ -204,7 +206,8 @@ export function FundRequest() {
       console.log(data);
       const requestsList = Array.isArray(data.fund_requests) ? data.fund_requests : [];
       
-      const totalCount = data.total || requestsList.length;
+      // Use server-provided total count for accurate pagination
+      const totalCount = data.total ?? data.total_count ?? requestsList.length;
 
       // Sort by created_at (latest first)
       const sortedRequests = [...requestsList].sort((a: FundRequest, b: FundRequest) => {
@@ -241,14 +244,20 @@ export function FundRequest() {
   }, []);
 
   useEffect(() => {
-    fetchRequests();
+    // Reset to page 1 when filters change, then fetch
+    setCurrentPage(1);
+    fetchRequests(1, recordsPerPage);
   }, [statusFilter, startDate, endDate]);
 
-  // Apply search filter and pagination (client-side)
+  // Re-fetch when page or recordsPerPage changes (but not on initial filter-triggered resets)
+  useEffect(() => {
+    fetchRequests(currentPage, recordsPerPage);
+  }, [currentPage, recordsPerPage]);
+
+  // Apply client-side search filter only (no pagination slicing — data is already paginated by server)
   useEffect(() => {
     let filtered = [...requests];
 
-    // Global search filter
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -264,14 +273,8 @@ export function FundRequest() {
       );
     }
 
-    // Client-side pagination
-    const startIndex = (currentPage - 1) * recordsPerPage;
-    const endIndex = startIndex + recordsPerPage;
-    const paginatedData = filtered.slice(startIndex, endIndex);
-
-    setFilteredRequests(paginatedData);
-    setTotalRecords(filtered.length);
-  }, [searchTerm, requests, currentPage, recordsPerPage]);
+    setFilteredRequests(filtered);
+  }, [searchTerm, requests]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -285,7 +288,7 @@ export function FundRequest() {
   // Export to Excel
   const exportToExcel = () => {
     try {
-      // Export all filtered data (not just current page)
+      // Export all filtered data (current page data after search)
       let allFilteredData = [...requests];
       
       if (searchTerm.trim()) {
@@ -405,7 +408,7 @@ export function FundRequest() {
         description: "Fund request accepted successfully",
       });
       fetchWalletBalance();
-      fetchRequests();
+      fetchRequests(currentPage, recordsPerPage);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -454,7 +457,7 @@ export function FundRequest() {
       setShowRejectDialog(false);
       setSelectedRequestForReject(null);
       setRejectionRemarks("");
-      fetchRequests();
+      fetchRequests(currentPage, recordsPerPage);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -497,33 +500,33 @@ export function FundRequest() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
-const getRequestTypeBadge = (type: string) => {
-  const upper = type?.toUpperCase();
 
-  switch (upper) {
-    case "NORMAL":
-      return (
-        <Badge className="bg-blue-100 text-blue-700 border border-blue-300">
-          Bank Transfer
-        </Badge>
-      );
+  const getRequestTypeBadge = (type: string) => {
+    const upper = type?.toUpperCase();
 
-    case "ADVANCE":
-      return (
-        <Badge className="bg-purple-100 text-purple-700 border border-purple-300">
-          Advance Credit
-        </Badge>
-      );
+    switch (upper) {
+      case "NORMAL":
+        return (
+          <Badge className="bg-blue-100 text-blue-700 border border-blue-300">
+            Bank Transfer
+          </Badge>
+        );
 
-    default:
-      return (
-        <Badge className="bg-gray-100 text-gray-700 border border-gray-300">
-          {type || "-"}
-        </Badge>
-      );
-  }
-};
+      case "ADVANCE":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border border-purple-300">
+            Advance Credit
+          </Badge>
+        );
 
+      default:
+        return (
+          <Badge className="bg-gray-100 text-gray-700 border border-gray-300">
+            {type || "-"}
+          </Badge>
+        );
+    }
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
@@ -597,7 +600,7 @@ const getRequestTypeBadge = (type: string) => {
                 </p>
               </div>
             </div>
-            <Button onClick={fetchRequests} variant="outline" size="sm">
+            <Button onClick={() => fetchRequests(currentPage, recordsPerPage)} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
