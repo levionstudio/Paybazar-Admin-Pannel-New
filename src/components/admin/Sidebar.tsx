@@ -22,6 +22,7 @@ import {
   Smartphone,
   Zap,
   Menu,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ const info = [
 const fundsSubMenu = [
   { name: "Fund Request", href: "/admin/funds/request", icon: Send },
   { name: "Revert Request", href: "/admin/funds/revert", icon: RotateCcw },
+  { name: "Fund Transfer", href: "/admin/funds/transfer", icon: ArrowRightLeft },
 ];
 
 interface SidebarProps {

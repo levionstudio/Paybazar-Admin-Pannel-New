@@ -42,6 +42,7 @@ import RetailerBankAccount from "./components/admin/AdminBankForRetailer";
 import DTHRechargeTransactionPage from "./components/admin/DthTrasactionLogs";
 import PostpaidRechargeTransactionPage from "./components/admin/PostPaidTrasaction";
 import ElectricityBillTransactionPage from "./components/admin/ElectricityTrasaction";
+import AdminFundTransfer from "./components/admin/FundTransfer";
 
 const queryClient = new QueryClient();
 
@@ -125,6 +126,7 @@ const App = () => {
               <Route path="/admin/logs/postpaidrecharge" element={<PostpaidRechargeTransactionPage/>} />
               <Route path="/admin/logs/electricitybill" element={<ElectricityBillTransactionPage/>} />
               <Route path="/admin/Users/swap" element={<UserHierarchySwap />} />
+              <Route path="/admin/funds/transfer" element={<AdminFundTransfer />} />
 
               <Route path="/admin/api/down" element={<ApiManagement />} />
             </Route>
